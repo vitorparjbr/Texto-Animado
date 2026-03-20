@@ -293,6 +293,14 @@
     <script src="scripts/exporter.js" defer></script>
     <script src="scripts/events.js" defer></script>
     <script src="scripts/main.js" defer></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('./service-worker.js');
+            });
+        }
+    </script>
 </body>
 </html>
 
