@@ -2,8 +2,348 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="refresh" content="0; url=Texto%20Animado.html">
-    <title>TextFlow</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <title>TextFlow - Animador de Texto</title>
+
+    <!-- PWA Meta Tags -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#ff6b4a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="TextFlow">
+    <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700;900&family=Roboto+Mono:wght@400;700&family=Bebas+Neue&family=Pacifico&family=Oswald:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles/utils.css">
+    <link rel="stylesheet" href="styles/main.css">
+
 </head>
-<body></body>
+<body class="min-h-screen bg-pattern">
+    <div id="menuOverlay" class="overlay"></div>
+    <div id="toast" class="toast"></div>
+
+    <button id="menuToggle" class="fixed top-4 left-4 z-50 glass-panel p-3 rounded-xl btn-control hover-accent-border" aria-label="Abrir menu">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+        </svg>
+    </button>
+
+    <aside id="sideMenu" class="fixed left-0 top-0 h-full w-80 glass-panel z-40 overflow-hidden hidden">
+        <div class="h-full flex flex-col">
+            <div class="p-4 border-b border-themed flex items-center justify-between">
+                <h2 class="text-lg font-semibold">Configurações</h2>
+                <div class="flex items-center gap-1">
+                    <button id="undoBtn" class="p-2 hover-card-bg rounded-lg transition-colors" aria-label="Desfazer" title="Desfazer (Ctrl+Z)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h10a5 5 0 0 1 0 10H9"/><polyline points="3,10 7,6"/><polyline points="3,10 7,14"/></svg>
+                    </button>
+                    <button id="redoBtn" class="p-2 hover-card-bg rounded-lg transition-colors" aria-label="Refazer" title="Refazer (Ctrl+Y)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10H11a5 5 0 0 0 0 10h4"/><polyline points="21,10 17,6"/><polyline points="21,10 17,14"/></svg>
+                    </button>
+                </div>
+                <button id="closeMenu" class="p-2 hover-card-bg rounded-lg transition-colors" aria-label="Fechar menu">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-6">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-muted">Texto</label>
+                    <textarea id="textInput" class="input-field w-full h-24 p-3 rounded-lg resize-none text-sm" placeholder="Digite seu texto aqui...">Texto animado surgindo do rodapé</textarea>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-muted">Velocidade</label>
+                    <div class="flex items-center gap-3">
+                        <input type="range" id="speedControl" min="0.5" max="5" step="0.1" value="2" class="flex-1" title="Velocidade da animação" aria-label="Velocidade da animação">
+                        <span id="speedValue" class="text-sm w-8">2x</span>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-muted">Atraso da camada</label>
+                    <div class="flex items-center gap-3">
+                        <input type="range" id="layerDelay" min="0" max="10" step="0.1" value="0" class="flex-1" title="Atraso de entrada da camada ativa" aria-label="Atraso de entrada da camada ativa">
+                        <span id="layerDelayValue" class="text-sm w-10">0s</span>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-muted">Alinhamento</label>
+                    <div class="flex gap-2">
+                        <button class="toggle-btn flex-1 p-2 rounded-lg border-themed active" data-align="left" aria-label="Alinhar esquerda">
+                            <svg class="mx-auto" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="3" y1="6" x2="21" y2="6"></line>
+                                <line x1="3" y1="12" x2="15" y2="12"></line>
+                                <line x1="3" y1="18" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                        <button class="toggle-btn flex-1 p-2 rounded-lg border-themed" data-align="center" aria-label="Centralizar">
+                            <svg class="mx-auto" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="3" y1="6" x2="21" y2="6"></line>
+                                <line x1="6" y1="12" x2="18" y2="12"></line>
+                                <line x1="4" y1="18" x2="20" y2="18"></line>
+                            </svg>
+                        </button>
+                        <button class="toggle-btn flex-1 p-2 rounded-lg border-themed" data-align="right" aria-label="Alinhar direita">
+                            <svg class="mx-auto" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="3" y1="6" x2="21" y2="6"></line>
+                                <line x1="9" y1="12" x2="21" y2="12"></line>
+                                <line x1="6" y1="18" x2="21" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <label class="text-sm font-medium text-muted">Fonte</label>
+                    <select id="fontFamily" class="select-field w-full p-2 rounded-lg" title="Família da fonte" aria-label="Família da fonte">
+                        <option value="Space Grotesk">Space Grotesk</option>
+                        <option value="Playfair Display">Playfair Display</option>
+                        <option value="Roboto Mono">Roboto Mono</option>
+                        <option value="Bebas Neue">Bebas Neue</option>
+                        <option value="Pacifico">Pacifico</option>
+                        <option value="Oswald">Oswald</option>
+                    </select>
+
+                    <div class="flex gap-2">
+                        <div class="flex-1">
+                            <label class="text-xs text-muted">Tamanho</label>
+                            <input type="number" id="fontSize" value="48" min="12" max="200" class="input-field w-full p-2 rounded-lg text-sm" title="Tamanho da fonte" aria-label="Tamanho da fonte">
+                        </div>
+                        <div class="flex-1">
+                            <label class="text-xs text-muted">Cor</label>
+                            <div class="flex items-center gap-2 mt-1">
+                                <input type="color" id="textColor" value="#ffffff" title="Cor do texto" aria-label="Cor do texto">
+                                <span id="colorHex" class="text-xs text-muted">#ffffff</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button id="boldToggle" class="toggle-btn flex-1 p-2 rounded-lg border-themed font-bold" aria-label="Negrito">N</button>
+                        <button id="italicToggle" class="toggle-btn flex-1 p-2 rounded-lg border-themed italic" aria-label="Itálico">I</button>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-xs text-muted">Gradiente</label>
+                        <div class="flex items-center gap-2">
+                            <button id="gradientToggle" class="toggle-btn px-3 py-1 rounded-lg border-themed text-xs">OFF</button>
+                            <input type="color" id="gradientColor1" value="#ff6b4a" title="Cor inicial do gradiente" aria-label="Cor inicial do gradiente">
+                            <input type="color" id="gradientColor2" value="#4a9fff" title="Cor final do gradiente" aria-label="Cor final do gradiente">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <label class="text-sm font-medium text-muted">Efeitos</label>
+                    <select id="effectType" class="select-field w-full p-2 rounded-lg" title="Tipo de efeito" aria-label="Tipo de efeito">
+                        <option value="none">Nenhum</option>
+                        <option value="shadow">Sombra</option>
+                        <option value="neon">Neon</option>
+                        <option value="outline">Contorno</option>
+                        <option value="hollow">Vazado</option>
+                        <option value="glow">Brilho</option>
+                    </select>
+
+                    <div id="effectOptions" class="space-y-3 hidden">
+                        <div class="flex items-center gap-3">
+                            <label class="text-xs text-muted w-16">Cor</label>
+                            <input type="color" id="effectColor" value="#ff6b4a" title="Cor do efeito" aria-label="Cor do efeito">
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <label class="text-xs text-muted w-16">Espessura</label>
+                            <input type="range" id="effectThickness" min="1" max="20" value="3" class="flex-1" title="Espessura do efeito" aria-label="Espessura do efeito">
+                            <span id="thicknessValue" class="text-xs w-6">3</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <label class="text-xs text-muted w-16">Intensidade</label>
+                            <input type="range" id="effectIntensity" min="0" max="100" value="50" class="flex-1" title="Intensidade do efeito" aria-label="Intensidade do efeito">
+                            <span id="intensityValue" class="text-xs w-8">50%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-muted">Animação</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button class="anim-btn p-2 rounded-lg border-themed text-xs active" data-anim="scrollUp">Scroll ↑</button>
+                        <button class="anim-btn p-2 rounded-lg border-themed text-xs" data-anim="scrollDown">Scroll ↓</button>
+                        <button class="anim-btn p-2 rounded-lg border-themed text-xs" data-anim="fadeIn">Fade In</button>
+                        <button class="anim-btn p-2 rounded-lg border-themed text-xs" data-anim="typewriter">Typewriter</button>
+                        <button class="anim-btn p-2 rounded-lg border-themed text-xs" data-anim="zoomIn">Zoom In</button>
+                        <button class="anim-btn p-2 rounded-lg border-themed text-xs" data-anim="bounce">Bounce</button>
+                        <button class="anim-btn p-2 rounded-lg border-themed text-xs" data-anim="slideLeft">Slide ←</button>
+                        <button class="anim-btn p-2 rounded-lg border-themed text-xs" data-anim="slideRight">Slide →</button>
+                        <button class="anim-btn p-2 rounded-lg border-themed text-xs" data-anim="wave">Wave</button>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-muted">Easing</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button class="easing-btn p-2 rounded-lg border-themed text-xs active" data-easing="linear">Linear</button>
+                        <button class="easing-btn p-2 rounded-lg border-themed text-xs" data-easing="easeIn">Ease In</button>
+                        <button class="easing-btn p-2 rounded-lg border-themed text-xs" data-easing="easeOut">Ease Out</button>
+                        <button class="easing-btn p-2 rounded-lg border-themed text-xs" data-easing="easeInOut">Ease InOut</button>
+                        <button class="easing-btn p-2 rounded-lg border-themed text-xs" data-easing="elasticOut">Elastic</button>
+                        <button class="easing-btn p-2 rounded-lg border-themed text-xs" data-easing="bounceOut">Bounce</button>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-muted">Formato</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button class="format-btn p-3 rounded-lg border-themed text-center text-xs" data-format="9:16">
+                            <div class="w-4 h-7 bg-muted mx-auto mb-1 rounded-sm"></div>
+                            9:16
+                        </button>
+                        <button class="format-btn p-3 rounded-lg border-themed text-center text-xs active" data-format="1:1">
+                            <div class="w-5 h-5 bg-muted mx-auto mb-1 rounded-sm"></div>
+                            1:1
+                        </button>
+                        <button class="format-btn p-3 rounded-lg border-themed text-center text-xs" data-format="16:9">
+                            <div class="w-7 h-4 bg-muted mx-auto mb-1 rounded-sm"></div>
+                            16:9
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="text-sm font-medium text-muted">Resolução</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button class="resolution-btn p-2 rounded-lg border-themed text-xs" data-res="480">480p</button>
+                        <button class="resolution-btn p-2 rounded-lg border-themed text-xs active" data-res="720">720p</button>
+                        <button class="resolution-btn p-2 rounded-lg border-themed text-xs" data-res="1080">1080p</button>
+                    </div>
+                </div>
+
+                <div class="space-y-3">
+                    <label class="text-sm font-medium text-muted">Fundo</label>
+                    <div class="flex gap-2">
+                        <button id="bgTransparent" class="toggle-btn flex-1 p-2 rounded-lg border-themed text-xs active">Transparente</button>
+                        <button id="bgColorBtn" class="toggle-btn flex-1 p-2 rounded-lg border-themed text-xs">Cor</button>
+                    </div>
+                    <div id="bgColorPicker" class="hidden">
+                        <input type="color" id="bgColorValue" value="#0a0a0f" title="Cor do fundo" aria-label="Cor do fundo">
+                    </div>
+                    <div class="space-y-2">
+                        <label class="text-xs text-muted" for="mediaInput">Importar imagem/vídeo</label>
+                        <input type="file" id="mediaInput" accept="image/*,video/*" class="input-field w-full p-2 rounded-lg text-xs" title="Importar imagem ou vídeo de fundo" aria-label="Importar imagem ou vídeo de fundo">
+                    </div>
+                    <button id="removeMedia" class="w-full p-2 rounded-lg border-themed text-xs hover-red-border hover-red-text transition-colors hidden">Remover fundo importado</button>
+                </div>
+
+                <div class="space-y-3">
+                    <label class="text-sm font-medium text-muted">Camadas</label>
+                    <div id="layersList" class="space-y-2"></div>
+                    <button id="addLayerBtn" class="w-full p-2 rounded-lg border-themed border-dashed text-xs hover-accent-border hover-accent-text transition-colors">+ Adicionar camada</button>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-themed space-y-3">
+                <button id="exportBtn" class="w-full py-3 px-4 bg-accent rounded-xl font-medium btn-control flex items-center justify-center gap-2">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7,10 12,15 17,10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Exportar Vídeo
+                </button>
+                <div class="space-y-1">
+                    <label class="text-xs text-muted" for="saveSlot">Slot de salvamento</label>
+                    <select id="saveSlot" class="select-field w-full p-2 rounded-lg text-xs" title="Selecionar slot de salvamento" aria-label="Selecionar slot de salvamento">
+                        <option value="1">Slot 1</option>
+                        <option value="2">Slot 2</option>
+                        <option value="3">Slot 3</option>
+                        <option value="4">Slot 4</option>
+                        <option value="5">Slot 5</option>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <button id="saveProject" class="flex-1 py-2 px-3 rounded-lg border-themed text-xs btn-control hover-accent-border" title="Salvar projeto no slot selecionado">Salvar</button>
+                    <button id="loadProject" class="flex-1 py-2 px-3 rounded-lg border-themed text-xs btn-control hover-accent-border" title="Carregar projeto do slot selecionado">Carregar</button>
+                    <button id="clearProject" class="flex-1 py-2 px-3 rounded-lg border-themed text-xs btn-control hover-red-border hover-red-text" title="Limpar slot selecionado">Limpar</button>
+                </div>
+                <div id="progressContainer" class="w-full h-1\.5 bg-border rounded-full overflow-hidden hidden">
+                    <div id="progressBar" class="h-full bg-accent w-0"></div>
+                </div>
+                <p id="exportStatus" class="text-xs text-center text-muted hidden"></p>
+            </div>
+        </div>
+    </aside>
+
+    <main class="min-h-screen flex items-center justify-center p-4 md:p-8">
+        <div class="relative">
+            <div id="canvasContainer" class="canvas-container rounded-2xl overflow-hidden shadow-2xl relative">
+                <canvas id="mainCanvas" width="720" height="720"></canvas>
+
+                <!-- .media-bg-source is opacity:0 — ensures iOS Safari decodes video frames for ctx.drawImage() -->
+                <video id="videoBg" class="absolute inset-0 w-full h-full object-cover media-bg-source" muted loop playsinline></video>
+                <img id="imageBg" class="absolute inset-0 w-full h-full object-cover media-bg-source" alt="">
+            </div>
+
+            <div class="absolute bottom-4 left-1\/2 -translate-x-1\/2 flex items-center gap-3 glass-panel rounded-full px-4 py-2">
+                <button id="playPauseBtn" class="p-2 hover-card-bg rounded-full transition-colors" aria-label="Play/Pause">
+                    <svg id="playIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5,3 19,12 5,21"></polygon>
+                    </svg>
+                    <svg id="pauseIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="hidden">
+                        <rect x="6" y="4" width="4" height="16"></rect>
+                        <rect x="14" y="4" width="4" height="16"></rect>
+                    </svg>
+                </button>
+                <button id="resetBtn" class="p-2 hover-card-bg rounded-full transition-colors" aria-label="Reiniciar">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                        <path d="M3 3v5h5"></path>
+                    </svg>
+                </button>
+                <span id="recordingBadge" class="hidden px-2 py-1 bg-red-500 text-white text-xs rounded-full recording-indicator">REC</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- Preview Modal (Feature 3) -->
+    <div id="previewModal" class="preview-modal hidden">
+        <div class="preview-backdrop"></div>
+        <div class="preview-dialog glass-panel rounded-2xl">
+            <div class="preview-header">
+                <h3 class="text-lg font-semibold">Pré-visualização</h3>
+                <p class="text-xs text-muted">Confira antes de baixar</p>
+            </div>
+            <video id="previewVideo" class="preview-video" controls autoplay loop playsinline></video>
+            <div class="preview-actions">
+                <button id="previewDownload" class="btn-control bg-accent py-2 px-4 rounded-xl font-medium flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7,10 12,15 17,10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Baixar
+                </button>
+                <button id="previewDiscard" class="btn-control py-2 px-4 rounded-xl border-themed hover-red-border hover-red-text">
+                    Descartar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="scripts/state.js" defer></script>
+    <script src="scripts/render.js" defer></script>
+    <script src="scripts/exporter.js" defer></script>
+    <script src="scripts/events.js" defer></script>
+    <script src="scripts/main.js" defer></script>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('./service-worker.js');
+            });
+        }
+    </script>
+</body>
 </html>

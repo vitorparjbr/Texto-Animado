@@ -1,7 +1,7 @@
 const CACHE_NAME = 'textflow-v3';
 const ASSETS_TO_CACHE = [
     './',
-    './Texto Animado.html',
+    './index.html',
     './styles/utils.css',
     './styles/main.css',
     './scripts/state.js',
@@ -72,7 +72,7 @@ self.addEventListener('fetch', function(event) {
             }).catch(function() {
                 // Offline fallback - return cached index for navigation requests
                 if (event.request.mode === 'navigate') {
-                    return caches.match('./Texto Animado.html');
+                    return caches.match('./index.html');
                 }
             });
         })

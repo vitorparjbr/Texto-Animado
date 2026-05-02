@@ -31,8 +31,7 @@ O TextFlow permite:
 ## Estrutura do Projeto
 
 ```
-Texto Animado.html    # Página principal
-index.html            # Redirecionamento (entrada para GitHub Pages)
+index.html            # Página principal
 manifest.json         # Manifesto PWA
 service-worker.js     # Cache offline (textflow-v3)
 styles/
@@ -53,7 +52,7 @@ icons/
 
 É um app estático — não há build necessário.
 
-1. Abra o arquivo `Texto Animado.html` em um navegador moderno (Chrome ou Edge recomendados).
+1. Abra o arquivo `index.html` em um navegador moderno (Chrome ou Edge recomendados).
 2. Ajuste as opções no menu lateral (ícone ☰).
 3. Use os controles de reprodução para pré-visualizar.
 4. Clique em **"Exportar Vídeo"** → assista o preview → baixe ou descarte.
