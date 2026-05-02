@@ -228,8 +228,14 @@
 
         document.getElementById('exportBtn').addEventListener('click', runExport);
 
+        function getSlotKey() {
+            var slotEl = document.getElementById('saveSlot');
+            var slot = slotEl ? slotEl.value : '1';
+            return 'textflow_project_slot' + slot;
+        }
+
         document.getElementById('saveProject').addEventListener('click', function() {
-            const data = {
+            var data = {
                 layers: state.layers,
                 activeLayerId: state.activeLayerId,
                 nextLayerId: state.nextLayerId,
@@ -241,8 +247,16 @@
             };
 
             try {
-                localStorage.setItem('textflow_project', JSON.stringify(data));
-                showToast('Projeto salvo!', 'success');
+                localStorage.setItem(getSlotKey(), JSON.stringify(data));
+                var slotEl = document.getElementById('saveSlot');
+                var slotName = slotEl ? 'Slot ' + slotEl.value : '';
+                showToast('Projeto salvo! (' + slotName + ')', 'success');
+                // Warn if media background exists — it is not serializable
+                if (state.mediaType) {
+                    setTimeout(function() {
+                        showToast('Atenção: o fundo importado não é salvo', 'info');
+                    }, 2600);
+                }
             } catch (e) {
                 showToast('Erro ao salvar', 'error');
             }
@@ -250,13 +264,15 @@
 
         document.getElementById('loadProject').addEventListener('click', function() {
             try {
-                const raw = localStorage.getItem('textflow_project');
+                var raw = localStorage.getItem(getSlotKey());
                 if (!raw) {
-                    showToast('Nenhum projeto salvo', 'info');
+                    var slotEl = document.getElementById('saveSlot');
+                    var slotName = slotEl ? 'Slot ' + slotEl.value : 'slot';
+                    showToast(slotName + ' está vazio', 'info');
                     return;
                 }
 
-                const data = JSON.parse(raw);
+                var data = JSON.parse(raw);
                 saveUndoState();
                 state.layers = data.layers || state.layers;
                 state.activeLayerId = data.activeLayerId || state.layers[0].id;
@@ -269,15 +285,19 @@
 
                 initCanvas();
                 syncUIFromState();
-                showToast('Projeto carregado!', 'success');
+                var slotEl2 = document.getElementById('saveSlot');
+                var slotName2 = slotEl2 ? 'Slot ' + slotEl2.value : '';
+                showToast('Projeto carregado! (' + slotName2 + ')', 'success');
             } catch (e) {
                 showToast('Erro ao carregar', 'error');
             }
         });
 
         document.getElementById('clearProject').addEventListener('click', function() {
-            localStorage.removeItem('textflow_project');
-            showToast('Dados limpos', 'info');
+            var slotEl = document.getElementById('saveSlot');
+            var slotName = slotEl ? 'Slot ' + slotEl.value : '';
+            localStorage.removeItem(getSlotKey());
+            showToast(slotName + ' limpo', 'info');
         });
 
         document.addEventListener('keydown', function(e) {

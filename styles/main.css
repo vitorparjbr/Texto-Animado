@@ -1,4 +1,4 @@
-﻿:root {
+:root {
     --bg: #0a0a0f;
     --bg-secondary: #12121a;
     --fg: #f0f0f5;
@@ -28,6 +28,7 @@ body {
 
 .glass-panel {
     background: rgba(18, 18, 26, 0.85);
+    -webkit-backdrop-filter: blur(20px);
     backdrop-filter: blur(20px);
     border: 1px solid var(--border);
 }
@@ -55,6 +56,7 @@ body {
     color: var(--fg);
     cursor: pointer;
 }
+.select-field:focus { outline: none; border-color: var(--accent); }
 
 .toggle-btn { transition: all 0.2s; cursor: pointer; }
 .toggle-btn.active { background: var(--accent); color: white; }
@@ -123,12 +125,14 @@ body {
 
 input[type="range"] {
     -webkit-appearance: none;
+    appearance: none;
     background: var(--border);
     border-radius: 4px;
     height: 4px;
 }
 input[type="range"]::-webkit-slider-thumb {
     -webkit-appearance: none;
+    appearance: none;
     width: 14px; height: 14px;
     background: var(--accent);
     border-radius: 50%;
@@ -137,6 +141,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 input[type="color"] {
     -webkit-appearance: none;
+    appearance: none;
     border: none;
     width: 32px; height: 32px;
     border-radius: 6px;
@@ -282,6 +287,31 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
     .controls-bar { gap: 0.25rem; padding: 0.35rem 0.75rem; }
 
     body { -webkit-tap-highlight-color: transparent; }
+
+    /* Larger touch targets for color pickers */
+    input[type="color"] {
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+    }
+
+    /* Minimum 44px touch target for the close (X) button */
+    #closeMenu {
+        min-width: 44px;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Ensure menu header buttons are easy to tap */
+    #undoBtn, #redoBtn {
+        min-width: 40px;
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 }
 
 @supports (padding-top: env(safe-area-inset-top)) {
@@ -291,3 +321,11 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
     }
 }
 
+
+/* Media background source elements — kept in DOM but invisible.
+   opacity:0 instead of display:none ensures iOS Safari decodes
+   video frames so ctx.drawImage() works correctly on canvas. */
+.media-bg-source {
+    opacity: 0;
+    pointer-events: none;
+}

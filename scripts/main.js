@@ -205,14 +205,14 @@
     function runUndo() {
         undo(function() {
             syncUIFromState();
-            showToast('Acao desfeita', 'info');
+            showToast('Ação desfeita', 'info');
         });
     }
 
     function runRedo() {
         redo(function() {
             syncUIFromState();
-            showToast('Acao refeita', 'info');
+            showToast('Ação refeita', 'info');
         });
     }
 

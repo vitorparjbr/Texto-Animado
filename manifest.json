@@ -4,7 +4,7 @@
     "description": "Crie animações de texto profissionais diretamente no seu dispositivo.",
     "start_url": "./Texto Animado.html",
     "display": "standalone",
-    "orientation": "portrait",
+    "orientation": "any",
     "background_color": "#0a0a0f",
     "theme_color": "#ff6b4a",
     "lang": "pt-BR",

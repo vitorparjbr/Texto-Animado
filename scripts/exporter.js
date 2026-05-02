@@ -19,7 +19,7 @@
         statusEl.style.display = 'block';
         progressContainer.style.display = 'block';
         progressBar.style.width = '0%';
-        statusEl.textContent = 'Preparando gravacao...';
+        statusEl.textContent = 'Preparando gravação...';
         exportBtn.disabled = true;
         recordingBadge.style.display = 'inline-block';
 
@@ -30,7 +30,7 @@
                 if (!MediaRecorder.isTypeSupported(mimeType)) {
                     mimeType = 'video/mp4';
                     if (!MediaRecorder.isTypeSupported(mimeType)) {
-                        throw new Error('Seu navegador nao suporta gravacao de video.');
+                        throw new Error('Seu navegador não suporta gravação de vídeo.');
                     }
                 }
             }
@@ -91,7 +91,7 @@
                 }, duration);
             });
 
-            statusEl.textContent = 'Processando video...';
+            statusEl.textContent = 'Processando vídeo...';
             progressBar.style.width = '100%';
 
             const blob = await blobPromise;
@@ -108,7 +108,7 @@
             updatePlayPauseUI();
 
             statusEl.textContent = 'Exportado com sucesso!';
-            showToast('Video exportado!', 'success');
+            showToast('Vídeo exportado!', 'success');
 
             setTimeout(function() {
                 statusEl.style.display = 'none';
@@ -117,8 +117,8 @@
             }, 3000);
         } catch (error) {
             console.error('Export error:', error);
-            statusEl.textContent = error.message || 'Erro na exportacao. Tente novamente.';
-            showToast('Erro na exportacao', 'error');
+            statusEl.textContent = error.message || 'Erro na exportação. Tente novamente.';
+            showToast('Erro na exportação', 'error');
             progressContainer.style.display = 'none';
         }
 

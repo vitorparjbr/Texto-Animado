@@ -64,7 +64,20 @@
 
         let fillStyle = color;
         if (layer.useGradient) {
-            const grad = ctx.createLinearGradient(x - 100, y, x + 200, y + layer.fontSize);
+            // Calculate gradient bounds based on real text width and alignment
+            const textWidth = ctx.measureText(text).width;
+            let gradX0, gradX1;
+            if (layer.align === 'center') {
+                gradX0 = x - textWidth / 2;
+                gradX1 = x + textWidth / 2;
+            } else if (layer.align === 'right') {
+                gradX0 = x - textWidth;
+                gradX1 = x;
+            } else {
+                gradX0 = x;
+                gradX1 = x + textWidth;
+            }
+            const grad = ctx.createLinearGradient(gradX0, y, gradX1, y + layer.fontSize);
             grad.addColorStop(0, layer.gradientColor1);
             grad.addColorStop(1, layer.gradientColor2);
             fillStyle = grad;
@@ -97,16 +110,20 @@
                 ctx.lineWidth = thickness;
                 ctx.strokeText(text, x, y);
                 break;
-            case 'glow':
+            case 'glow': {
+                // Save current alpha so we don't break animations that already set it (e.g. fadeIn)
+                const savedAlpha = ctx.globalAlpha;
                 ctx.shadowColor = effectColor;
                 ctx.shadowBlur = thickness * 8;
                 ctx.fillStyle = fillStyle;
-                ctx.globalAlpha = (ctx.globalAlpha || 1) * (0.3 + 0.7 * intensity);
+                ctx.globalAlpha = savedAlpha * (0.3 + 0.7 * intensity);
                 ctx.fillText(text, x, y);
-                ctx.globalAlpha = 1;
+                // Restore alpha and draw solid text on top
+                ctx.globalAlpha = savedAlpha;
                 ctx.shadowBlur = 0;
                 ctx.fillText(text, x, y);
                 break;
+            }
             default:
                 ctx.fillStyle = fillStyle;
                 ctx.fillText(text, x, y);

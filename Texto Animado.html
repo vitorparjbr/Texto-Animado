@@ -1,8 +1,8 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
     <title>TextFlow - Animador de Texto</title>
 
     <!-- PWA Meta Tags -->
@@ -59,7 +59,7 @@
                 <div class="space-y-2">
                     <label class="text-sm font-medium text-[var(--muted)]">Velocidade</label>
                     <div class="flex items-center gap-3">
-                        <input type="range" id="speedControl" min="0.5" max="5" step="0.1" value="2" class="flex-1">
+                        <input type="range" id="speedControl" min="0.5" max="5" step="0.1" value="2" class="flex-1" title="Velocidade da animação" aria-label="Velocidade da animação">
                         <span id="speedValue" class="text-sm w-8">2x</span>
                     </div>
                 </div>
@@ -93,7 +93,7 @@
 
                 <div class="space-y-3">
                     <label class="text-sm font-medium text-[var(--muted)]">Fonte</label>
-                    <select id="fontFamily" class="select-field w-full p-2 rounded-lg">
+                    <select id="fontFamily" class="select-field w-full p-2 rounded-lg" title="Família da fonte" aria-label="Família da fonte">
                         <option value="Space Grotesk">Space Grotesk</option>
                         <option value="Playfair Display">Playfair Display</option>
                         <option value="Roboto Mono">Roboto Mono</option>
@@ -105,12 +105,12 @@
                     <div class="flex gap-2">
                         <div class="flex-1">
                             <label class="text-xs text-[var(--muted)]">Tamanho</label>
-                            <input type="number" id="fontSize" value="48" min="12" max="200" class="input-field w-full p-2 rounded-lg text-sm">
+                            <input type="number" id="fontSize" value="48" min="12" max="200" class="input-field w-full p-2 rounded-lg text-sm" title="Tamanho da fonte" aria-label="Tamanho da fonte">
                         </div>
                         <div class="flex-1">
                             <label class="text-xs text-[var(--muted)]">Cor</label>
                             <div class="flex items-center gap-2 mt-1">
-                                <input type="color" id="textColor" value="#ffffff">
+                                <input type="color" id="textColor" value="#ffffff" title="Cor do texto" aria-label="Cor do texto">
                                 <span id="colorHex" class="text-xs text-[var(--muted)]">#ffffff</span>
                             </div>
                         </div>
@@ -124,14 +124,14 @@
                         <label class="text-xs text-[var(--muted)]">Gradiente</label>
                         <div class="flex items-center gap-2">
                             <button id="gradientToggle" class="toggle-btn px-3 py-1 rounded-lg border border-[var(--border)] text-xs">OFF</button>
-                            <input type="color" id="gradientColor1" value="#ff6b4a">
-                            <input type="color" id="gradientColor2" value="#4a9fff">
+                            <input type="color" id="gradientColor1" value="#ff6b4a" title="Cor inicial do gradiente" aria-label="Cor inicial do gradiente">
+                            <input type="color" id="gradientColor2" value="#4a9fff" title="Cor final do gradiente" aria-label="Cor final do gradiente">
                         </div>
                     </div>                </div>
 
                 <div class="space-y-3">
                     <label class="text-sm font-medium text-[var(--muted)]">Efeitos</label>
-                    <select id="effectType" class="select-field w-full p-2 rounded-lg">
+                    <select id="effectType" class="select-field w-full p-2 rounded-lg" title="Tipo de efeito" aria-label="Tipo de efeito">
                         <option value="none">Nenhum</option>
                         <option value="shadow">Sombra</option>
                         <option value="neon">Neon</option>
@@ -143,16 +143,16 @@
                     <div id="effectOptions" class="space-y-3 hidden">
                         <div class="flex items-center gap-3">
                             <label class="text-xs text-[var(--muted)] w-16">Cor</label>
-                            <input type="color" id="effectColor" value="#ff6b4a">
+                            <input type="color" id="effectColor" value="#ff6b4a" title="Cor do efeito" aria-label="Cor do efeito">
                         </div>
                         <div class="flex items-center gap-3">
                             <label class="text-xs text-[var(--muted)] w-16">Espessura</label>
-                            <input type="range" id="effectThickness" min="1" max="20" value="3" class="flex-1">
+                            <input type="range" id="effectThickness" min="1" max="20" value="3" class="flex-1" title="Espessura do efeito" aria-label="Espessura do efeito">
                             <span id="thicknessValue" class="text-xs w-6">3</span>
                         </div>
                         <div class="flex items-center gap-3">
                             <label class="text-xs text-[var(--muted)] w-16">Intensidade</label>
-                            <input type="range" id="effectIntensity" min="0" max="100" value="50" class="flex-1">
+                            <input type="range" id="effectIntensity" min="0" max="100" value="50" class="flex-1" title="Intensidade do efeito" aria-label="Intensidade do efeito">
                             <span id="intensityValue" class="text-xs w-8">50%</span>
                         </div>
                     </div>
@@ -219,11 +219,11 @@
                         <button id="bgColorBtn" class="toggle-btn flex-1 p-2 rounded-lg border border-[var(--border)] text-xs">Cor</button>
                     </div>
                     <div id="bgColorPicker" class="hidden">
-                        <input type="color" id="bgColorValue" value="#0a0a0f">
+                        <input type="color" id="bgColorValue" value="#0a0a0f" title="Cor do fundo" aria-label="Cor do fundo">
                     </div>
                     <div class="space-y-2">
-                        <label class="text-xs text-[var(--muted)]">Importar imagem/vídeo</label>
-                        <input type="file" id="mediaInput" accept="image/*,video/*" class="input-field w-full p-2 rounded-lg text-xs">
+                        <label class="text-xs text-[var(--muted)]" for="mediaInput">Importar imagem/vídeo</label>
+                        <input type="file" id="mediaInput" accept="image/*,video/*" class="input-field w-full p-2 rounded-lg text-xs" title="Importar imagem ou vídeo de fundo" aria-label="Importar imagem ou vídeo de fundo">
                     </div>
                     <button id="removeMedia" class="w-full p-2 rounded-lg border border-[var(--border)] text-xs hover:border-red-500 hover:text-red-400 transition-colors hidden">Remover fundo importado</button>
                 </div>
@@ -244,10 +244,20 @@
                     </svg>
                     Exportar Vídeo
                 </button>
+                <div class="space-y-1">
+                    <label class="text-xs text-[var(--muted)]" for="saveSlot">Slot de salvamento</label>
+                    <select id="saveSlot" class="select-field w-full p-2 rounded-lg text-xs" title="Selecionar slot de salvamento" aria-label="Selecionar slot de salvamento">
+                        <option value="1">Slot 1</option>
+                        <option value="2">Slot 2</option>
+                        <option value="3">Slot 3</option>
+                        <option value="4">Slot 4</option>
+                        <option value="5">Slot 5</option>
+                    </select>
+                </div>
                 <div class="flex gap-2">
-                    <button id="saveProject" class="flex-1 py-2 px-3 rounded-lg border border-[var(--border)] text-xs btn-control hover:border-[var(--accent)]" title="Salvar projeto">Salvar</button>
-                    <button id="loadProject" class="flex-1 py-2 px-3 rounded-lg border border-[var(--border)] text-xs btn-control hover:border-[var(--accent)]" title="Carregar projeto">Carregar</button>
-                    <button id="clearProject" class="flex-1 py-2 px-3 rounded-lg border border-[var(--border)] text-xs btn-control hover:border-red-500 hover:text-red-400" title="Limpar dados salvos">Limpar</button>
+                    <button id="saveProject" class="flex-1 py-2 px-3 rounded-lg border border-[var(--border)] text-xs btn-control hover:border-[var(--accent)]" title="Salvar projeto no slot selecionado">Salvar</button>
+                    <button id="loadProject" class="flex-1 py-2 px-3 rounded-lg border border-[var(--border)] text-xs btn-control hover:border-[var(--accent)]" title="Carregar projeto do slot selecionado">Carregar</button>
+                    <button id="clearProject" class="flex-1 py-2 px-3 rounded-lg border border-[var(--border)] text-xs btn-control hover:border-red-500 hover:text-red-400" title="Limpar slot selecionado">Limpar</button>
                 </div>
                 <div id="progressContainer" class="w-full h-1.5 bg-[var(--border)] rounded-full overflow-hidden hidden">
                     <div id="progressBar" class="h-full bg-[var(--accent)] w-0"></div>
@@ -262,9 +272,10 @@
             <div id="canvasContainer" class="canvas-container rounded-2xl overflow-hidden shadow-2xl relative">
                 <canvas id="mainCanvas" width="720" height="720"></canvas>
                 
-                <video id="videoBg" class="absolute inset-0 w-full h-full object-cover hidden" muted loop playsinline></video>
+                <!-- .media-bg-source is opacity:0 — ensures iOS Safari decodes video frames for ctx.drawImage() -->
+                <video id="videoBg" class="absolute inset-0 w-full h-full object-cover media-bg-source" muted loop playsinline></video>
                 
-                <img id="imageBg" class="absolute inset-0 w-full h-full object-cover hidden" alt="">
+                <img id="imageBg" class="absolute inset-0 w-full h-full object-cover media-bg-source" alt="">
             </div>
 
             <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 glass-panel rounded-full px-4 py-2">
