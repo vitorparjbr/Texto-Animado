@@ -1,6 +1,6 @@
 (() => {
-    const { easings, state, createDefaultLayer, getActiveLayer, getCanvasDimensions, saveUndoState, undo, redo } = window.TextFlowState;
-    const { getTotalTextHeight, resetAnimation: resetAnimationCore, render } = window.TextFlowRender;
+    const { easings, state, createDefaultLayer, getActiveLayer, getCanvasDimensions, saveUndoState, undo, redo, resetAnimation: stateReset } = window.TextFlowState;
+    const { getTotalTextHeight, render } = window.TextFlowRender;
     const { exportVideo } = window.TextFlowExporter;
     const { bindEvents } = window.TextFlowEvents;
 
@@ -26,7 +26,7 @@
     }
 
     function resetAnimation() {
-        resetAnimationCore(state, canvas);
+        stateReset();
     }
 
     function handleResize() {
@@ -174,6 +174,14 @@
         document.getElementById('bgColorBtn').classList.toggle('active', !state.bgTransparent);
         document.getElementById('bgColorPicker').style.display = state.bgTransparent ? 'none' : 'block';
 
+        // Delay slider
+        var delayEl = document.getElementById('layerDelay');
+        var delayValEl = document.getElementById('layerDelayValue');
+        if (delayEl) {
+            delayEl.value = layer.startDelay || 0;
+            delayValEl.textContent = (layer.startDelay || 0).toFixed(1) + 's';
+        }
+
         renderLayers();
     }
 
@@ -234,25 +242,10 @@
         if (!state.lastTime) state.lastTime = timestamp;
         let delta = (timestamp - state.lastTime) / 1000;
         state.lastTime = timestamp;
-
         if (delta > 0.1) delta = 0.016;
 
         if (state.isPlaying) {
-            const anim = getActiveLayer().animationType;
-            const isScrollAnim = anim === 'scrollUp' || anim === 'scrollDown';
-
-            if (isScrollAnim) {
-                const textHeight = getTotalTextHeight(ctx, canvas, state.layers);
-                const totalDistance = canvas.height + textHeight + 100;
-                const pixelsPerSecond = state.speed * 60;
-                const duration = totalDistance / pixelsPerSecond;
-                state.animProgress += delta / duration;
-                if (state.animProgress > 1) state.animProgress = 0;
-            } else {
-                const duration = Math.max(0.5, 5 / state.speed);
-                state.animProgress += delta / duration;
-                if (state.animProgress > 1) state.animProgress = 0;
-            }
+            state.globalTime += delta;
         }
 
         render(ctx, canvas, state, videoBg, imageBg, easings);

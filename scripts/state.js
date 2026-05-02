@@ -21,7 +21,7 @@
     function createDefaultLayer(id) {
         return {
             id,
-            text: 'Texto animado surgindo do rodape',
+            text: 'Texto animado surgindo do rodapé',
             fontFamily: 'Space Grotesk',
             fontSize: 48,
             textColor: '#ffffff',
@@ -36,7 +36,8 @@
             easing: 'linear',
             useGradient: false,
             gradientColor1: '#ff6b4a',
-            gradientColor2: '#4a9fff'
+            gradientColor2: '#4a9fff',
+            startDelay: 0
         };
     }
 
@@ -52,9 +53,7 @@
         mediaType: null,
         mediaSource: null,
         isPlaying: true,
-        animProgress: 0,
-        animationY: 0,
-        animationX: 0,
+        globalTime: 0,
         lastTime: 0,
         animationId: null
     };
@@ -122,6 +121,11 @@
         if (typeof afterApply === 'function') afterApply();
     }
 
+    function resetAnimation() {
+        state.globalTime = 0;
+        state.lastTime = 0;
+    }
+
     window.TextFlowState = {
         easings,
         state,
@@ -130,6 +134,7 @@
         getCanvasDimensions,
         saveUndoState,
         undo,
-        redo
+        redo,
+        resetAnimation
     };
 })();

@@ -1,0 +1,157 @@
+/* =============================================================
+   utils.css — Tailwind-equivalent utilities (local, no CDN)
+   Only the classes actually used in Texto Animado.html
+   ============================================================= */
+
+/* --- Display & Layout --- */
+.flex          { display: flex; }
+.grid          { display: grid; }
+.hidden        { display: none !important; }
+.inline-block  { display: inline-block; }
+.block         { display: block; }
+
+/* --- Flex helpers --- */
+.flex-col      { flex-direction: column; }
+.flex-1        { flex: 1 1 0%; }
+.items-center  { align-items: center; }
+.justify-center   { justify-content: center; }
+.justify-between  { justify-content: space-between; }
+.flex-wrap     { flex-wrap: wrap; }
+
+/* --- Grid --- */
+.grid-cols-3   { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* --- Gap --- */
+.gap-1  { gap: 0.25rem; }
+.gap-2  { gap: 0.5rem; }
+.gap-3  { gap: 0.75rem; }
+
+/* --- Position --- */
+.fixed    { position: fixed; }
+.absolute { position: absolute; }
+.relative { position: relative; }
+.inset-0  { top: 0; right: 0; bottom: 0; left: 0; }
+
+/* --- Z-index --- */
+.z-40 { z-index: 40; }
+.z-50 { z-index: 50; }
+.z-100 { z-index: 100; }
+
+/* --- Sizing --- */
+.w-full   { width: 100%; }
+.h-full   { height: 100%; }
+.min-h-screen { min-height: 100vh; }
+.w-0      { width: 0; }
+.w-4      { width: 1rem; }
+.w-5      { width: 1.25rem; }
+.w-6      { width: 1.5rem; }
+.w-7      { width: 1.75rem; }
+.w-8      { width: 2rem; }
+.w-10     { width: 2.5rem; }
+.w-16     { width: 4rem; }
+.w-80     { width: 20rem; }
+.h-1\.5   { height: 0.375rem; }
+.h-4      { height: 1rem; }
+.h-5      { height: 1.25rem; }
+.h-7      { height: 1.75rem; }
+.h-24     { height: 6rem; }
+
+/* --- Padding --- */
+.p-2   { padding: 0.5rem; }
+.p-3   { padding: 0.75rem; }
+.p-4   { padding: 1rem; }
+.px-2  { padding-left: 0.5rem;  padding-right: 0.5rem; }
+.px-3  { padding-left: 0.75rem; padding-right: 0.75rem; }
+.px-4  { padding-left: 1rem;    padding-right: 1rem; }
+.py-1  { padding-top: 0.25rem;  padding-bottom: 0.25rem; }
+.py-2  { padding-top: 0.5rem;   padding-bottom: 0.5rem; }
+.py-3  { padding-top: 0.75rem;  padding-bottom: 0.75rem; }
+
+/* --- Margin --- */
+.mt-1  { margin-top: 0.25rem; }
+.mb-1  { margin-bottom: 0.25rem; }
+.mx-auto { margin-left: auto; margin-right: auto; }
+
+/* --- Space-y (child spacing) --- */
+.space-y-1 > * + * { margin-top: 0.25rem; }
+.space-y-2 > * + * { margin-top: 0.5rem; }
+.space-y-3 > * + * { margin-top: 0.75rem; }
+.space-y-6 > * + * { margin-top: 1.5rem; }
+
+/* --- Typography --- */
+.text-xs   { font-size: 0.75rem;  line-height: 1rem; }
+.text-sm   { font-size: 0.875rem; line-height: 1.25rem; }
+.text-lg   { font-size: 1.125rem; line-height: 1.75rem; }
+.font-medium  { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+.italic    { font-style: italic; }
+.text-center { text-align: center; }
+.text-white  { color: #ffffff; }
+
+/* --- Themed color utilities --- */
+.text-muted        { color: var(--muted); }
+.bg-accent         { background: var(--accent); }
+.bg-border         { background: var(--border); }
+.bg-muted          { background: var(--muted); }
+.bg-card           { background: var(--card); }
+.border-themed     { border: 1px solid var(--border); }
+.border-accent     { border-color: var(--accent); }
+
+/* --- Hover utilities (replaces JIT hover:X classes) --- */
+.hover-accent-border:hover { border-color: var(--accent); }
+.hover-accent-text:hover   { color: var(--accent); }
+.hover-card-bg:hover       { background: var(--card); }
+.hover-red-border:hover    { border-color: #ef4444; }
+.hover-red-text:hover      { color: #f87171; }
+
+/* --- Border --- */
+.border   { border-width: 1px; border-style: solid; }
+.border-b { border-bottom-width: 1px; border-bottom-style: solid; }
+.border-t { border-top-width: 1px; border-top-style: solid; }
+.border-dashed { border-style: dashed; }
+
+/* --- Border radius --- */
+.rounded-sm   { border-radius: 0.125rem; }
+.rounded-lg   { border-radius: 0.5rem; }
+.rounded-xl   { border-radius: 0.75rem; }
+.rounded-2xl  { border-radius: 1rem; }
+.rounded-full { border-radius: 9999px; }
+
+/* --- Overflow --- */
+.overflow-hidden  { overflow: hidden; }
+.overflow-y-auto  { overflow-y: auto; }
+
+/* --- Object fit --- */
+.object-cover { object-fit: cover; }
+
+/* --- Transform helpers --- */
+.translate-x-1\/2  { transform: translateX(50%); }
+.-translate-x-1\/2 { transform: translateX(-50%); }
+
+/* --- Misc layout positions --- */
+.top-0    { top: 0; }
+.top-4    { top: 1rem; }
+.left-0   { left: 0; }
+.left-4   { left: 1rem; }
+.left-1\/2 { left: 50%; }
+.bottom-4 { bottom: 1rem; }
+
+/* --- Shadow --- */
+.shadow-2xl {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6),
+                0 10px 25px -5px rgba(0, 0, 0, 0.4);
+}
+
+/* --- Transition --- */
+.transition-colors {
+    transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* --- Resize --- */
+.resize-none { resize: none; }
+
+/* --- Responsive (md = 768px) --- */
+@media (min-width: 768px) {
+    .md\:p-8 { padding: 2rem; }
+}

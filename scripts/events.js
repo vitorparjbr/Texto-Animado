@@ -39,6 +39,13 @@
             document.getElementById('speedValue').textContent = state.speed + 'x';
         });
 
+        document.getElementById('layerDelay').addEventListener('input', function(e) {
+            saveUndoState();
+            var delay = parseFloat(e.target.value);
+            getActiveLayer().startDelay = delay;
+            document.getElementById('layerDelayValue').textContent = delay.toFixed(1) + 's';
+        });
+
         document.querySelectorAll('[data-align]').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 saveUndoState();

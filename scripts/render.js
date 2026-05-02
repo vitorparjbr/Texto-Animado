@@ -47,12 +47,6 @@
         return total;
     }
 
-    function resetAnimation(state, canvas) {
-        state.animProgress = 0;
-        state.animationY = canvas.height + 50;
-        state.animationX = canvas.width + 50;
-        state.lastTime = 0;
-    }
 
     function applyEffect(ctx, layer, text, x, y) {
         ctx.save();
@@ -133,12 +127,32 @@
     }
 
     function renderLayer(ctx, canvas, state, layer, easings) {
+        const globalTime = state.globalTime;
+        const delay = layer.startDelay || 0;
+
+        // Layer not started yet — skip rendering
+        if (globalTime < delay) return;
+
+        const localTime = globalTime - delay;
+        const anim = layer.animationType;
+        const isScroll = anim === 'scrollUp' || anim === 'scrollDown';
+        const easingFn = easings[layer.easing] || easings.linear;
+
+        let t;
+        if (isScroll) {
+            // Calculate t so that text travels full canvas + text height at given speed
+            const textH = getTextHeight(ctx, canvas, layer);
+            const totalDist = canvas.height + textH + 100;
+            const scrollDuration = totalDist / Math.max(1, state.speed * 60);
+            t = easingFn((localTime % scrollDuration) / scrollDuration);
+        } else {
+            const animDuration = Math.max(0.5, 5 / state.speed);
+            t = easingFn(Math.min(1, (localTime % animDuration) / animDuration));
+        }
+
         const lines = wrapText(ctx, layer.text, canvas.width - 40, layer);
         const lineHeight = layer.fontSize * 1.3;
         const totalHeight = lines.length * lineHeight;
-        const anim = layer.animationType;
-        const easing = easings[layer.easing] || easings.linear;
-        const t = easing(state.animProgress);
 
         ctx.save();
         ctx.font = getFont(layer);
@@ -291,7 +305,6 @@
         wrapText,
         getTextHeight,
         getTotalTextHeight,
-        resetAnimation,
         render
     };
 })();

@@ -60,8 +60,7 @@
                 duration = Math.max(500, (5 / state.speed) * 1000);
             }
 
-            const startY = state.animationY;
-            const startProgress = state.animProgress;
+            const startGlobalTime = state.globalTime;
             const wasPlaying = state.isPlaying;
 
             const blobPromise = new Promise(function(resolve) {
@@ -95,26 +94,45 @@
             progressBar.style.width = '100%';
 
             const blob = await blobPromise;
-            const dlUrl = URL.createObjectURL(blob);
-            const anchor = document.createElement('a');
-            anchor.href = dlUrl;
-            anchor.download = 'texto-animado.' + ext;
-            anchor.click();
-            URL.revokeObjectURL(dlUrl);
+            const ext2 = ext; // closure
 
-            state.animationY = startY;
-            state.animProgress = startProgress;
+            // Restore state
+            state.globalTime = startGlobalTime;
             state.isPlaying = wasPlaying;
             updatePlayPauseUI();
 
-            statusEl.textContent = 'Exportado com sucesso!';
-            showToast('Vídeo exportado!', 'success');
+            statusEl.textContent = 'Pronto! Confirme o download.';
 
-            setTimeout(function() {
+            // Show preview modal instead of auto-downloading
+            var previewModal = document.getElementById('previewModal');
+            var previewVideo = document.getElementById('previewVideo');
+            var previewUrl = URL.createObjectURL(blob);
+            previewVideo.src = previewUrl;
+            previewModal.classList.remove('hidden');
+
+            document.getElementById('previewDownload').onclick = function() {
+                var anchor = document.createElement('a');
+                anchor.href = previewUrl;
+                anchor.download = 'texto-animado.' + ext2;
+                anchor.click();
+                URL.revokeObjectURL(previewUrl);
+                previewModal.classList.add('hidden');
+                previewVideo.src = '';
+                showToast('Vídeo baixado!', 'success');
                 statusEl.style.display = 'none';
                 progressContainer.style.display = 'none';
                 progressBar.style.width = '0%';
-            }, 3000);
+            };
+
+            document.getElementById('previewDiscard').onclick = function() {
+                URL.revokeObjectURL(previewUrl);
+                previewModal.classList.add('hidden');
+                previewVideo.src = '';
+                showToast('Gravação descartada', 'info');
+                statusEl.style.display = 'none';
+                progressContainer.style.display = 'none';
+                progressBar.style.width = '0%';
+            };
         } catch (error) {
             console.error('Export error:', error);
             statusEl.textContent = error.message || 'Erro na exportação. Tente novamente.';
