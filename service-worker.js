@@ -1,4 +1,4 @@
-const CACHE_NAME = 'textflow-v1';
+const CACHE_NAME = 'textflow-v2';
 const ASSETS_TO_CACHE = [
     './',
     './Texto Animado.html',
