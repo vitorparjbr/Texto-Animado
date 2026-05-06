@@ -6,7 +6,7 @@
 /* --- Display & Layout --- */
 .flex          { display: flex; }
 .grid          { display: grid; }
-.hidden        { display: none !important; }
+.hidden        { display: none; }
 .inline-block  { display: inline-block; }
 .block         { display: block; }
 
