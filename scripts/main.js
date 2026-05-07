@@ -188,6 +188,11 @@
     function syncPreviewAudio(forceSeek) {
         ensurePreviewAudioSource();
 
+        if (state.isExporting) {
+            if (!audioTrack.paused) audioTrack.pause();
+            return;
+        }
+
         if (getActiveAudioMode() === 'none' || !getActiveAudioDuration() || audioTrack.readyState < 1) {
             return;
         }

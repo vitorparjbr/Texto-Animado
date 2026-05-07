@@ -300,6 +300,7 @@
                 };
             });
 
+            state.isExporting = true;
             mediaRecorder.start();
             statusEl.textContent = 'Gravando (~' + Math.ceil(duration / 1000) + 's)...';
 
@@ -330,6 +331,7 @@
             // Restore state
             state.globalTime = startGlobalTime;
             state.isPlaying = wasPlaying;
+            state.isExporting = false;
             updatePlayPauseUI();
 
             statusEl.textContent = 'Pronto! Confirme o download.';
@@ -387,6 +389,7 @@
                 audioExport.cleanup();
             }
         } catch (error) {
+            state.isExporting = false;
             console.error('Export error:', error);
             statusEl.textContent = error.message || 'Erro na exportação. Tente novamente.';
             showToast('Erro na exportação', 'error');

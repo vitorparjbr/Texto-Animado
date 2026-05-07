@@ -64,6 +64,7 @@
         audioVolume: 1,
         audioBuffer: null,
         audioIsDecoding: false,
+        isExporting: false,
         isPlaying: true,
         globalTime: 0,
         lastTime: 0,
