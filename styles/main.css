@@ -224,6 +224,53 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
 .toast.error { background: #ef4444; color: white; }
 .toast.info { background: var(--accent); color: white; }
 
+.update-banner {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(560px, calc(100vw - 1.5rem));
+    padding: 0.85rem 1rem;
+    border-radius: 1rem;
+    z-index: 110;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+}
+
+.update-banner.hidden {
+    display: none;
+}
+
+.update-banner-text {
+    font-size: 0.875rem;
+    color: var(--fg);
+}
+
+.update-banner-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.update-banner-btn {
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--fg);
+    border-radius: 9999px;
+    padding: 0.45rem 0.8rem;
+    cursor: pointer;
+}
+
+.update-banner-btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+}
+
 .kbd {
     display: inline-block;
     padding: 0.1em 0.4em;
@@ -278,6 +325,17 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
 /* PWA / Mobile adjustments */
 @media (max-width: 640px) {
     #sideMenu { width: 100%; }
+
+    .update-banner {
+        top: 0.75rem;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .update-banner-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
 
     .main-content,
     main.min-h-screen { padding: 0.5rem; padding-top: 3.5rem; }

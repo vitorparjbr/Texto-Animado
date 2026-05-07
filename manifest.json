@@ -1,8 +1,10 @@
 {
+    "id": "./",
     "name": "TextFlow - Animador de Texto",
     "short_name": "TextFlow",
     "description": "Crie animações de texto profissionais diretamente no seu dispositivo.",
     "start_url": "./index.html",
+    "scope": "./",
     "display": "standalone",
     "orientation": "any",
     "background_color": "#0a0a0f",

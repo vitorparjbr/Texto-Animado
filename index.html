@@ -20,6 +20,13 @@
 </head>
 <body class="min-h-screen bg-pattern">
     <div id="menuOverlay" class="overlay"></div>
+    <div id="updateBanner" class="update-banner glass-panel hidden" role="status" aria-live="polite">
+        <span class="update-banner-text">Uma nova versão do app está pronta para atualizar.</span>
+        <div class="update-banner-actions">
+            <button id="dismissUpdateBanner" class="update-banner-btn" type="button">Agora não</button>
+            <button id="reloadAppBtn" class="update-banner-btn primary" type="button">Atualizar</button>
+        </div>
+    </div>
     <div id="toast" class="toast"></div>
 
     <button id="menuToggle" class="fixed top-4 left-4 z-50 glass-panel p-3 rounded-xl btn-control hover-accent-border" aria-label="Abrir menu">
@@ -342,6 +349,58 @@
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
                 navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' }).then(function(registration) {
+                    var updateBanner = document.getElementById('updateBanner');
+                    var reloadAppBtn = document.getElementById('reloadAppBtn');
+                    var dismissUpdateBanner = document.getElementById('dismissUpdateBanner');
+                    var waitingWorker;
+                    var refreshing = false;
+
+                    function showUpdateBanner(worker) {
+                        waitingWorker = worker || registration.waiting || null;
+                        updateBanner.classList.remove('hidden');
+                    }
+
+                    function hideUpdateBanner() {
+                        updateBanner.classList.add('hidden');
+                    }
+
+                    function trackInstallingWorker(worker) {
+                        if (!worker) return;
+                        worker.addEventListener('statechange', function() {
+                            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+                                showUpdateBanner(worker);
+                            }
+                        });
+                    }
+
+                    if (registration.waiting) {
+                        showUpdateBanner(registration.waiting);
+                    }
+
+                    trackInstallingWorker(registration.installing);
+
+                    registration.addEventListener('updatefound', function() {
+                        trackInstallingWorker(registration.installing);
+                    });
+
+                    navigator.serviceWorker.addEventListener('controllerchange', function() {
+                        if (refreshing) return;
+                        refreshing = true;
+                        window.location.reload();
+                    });
+
+                    reloadAppBtn.addEventListener('click', function() {
+                        if (waitingWorker) {
+                            waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+                        } else {
+                            window.location.reload();
+                        }
+                    });
+
+                    dismissUpdateBanner.addEventListener('click', function() {
+                        hideUpdateBanner();
+                    });
+
                     registration.update();
                 });
             });

@@ -137,10 +137,17 @@ Chaves no `localStorage`: `textflow_project_slot1` a `textflow_project_slot5`.
 
 ## PWA / Offline
 
-- Service Worker `textflow-v3` cacheia todos os arquivos (incluindo `utils.css`) na primeira abertura online.
+- Service Worker `textflow-v5` cacheia o app shell e assets estáticos na primeira abertura online.
 - Após a primeira visita, o app funciona completamente offline.
 - Instalável em Android (Chrome) e iOS (Safari → "Adicionar à Tela de Início").
 - Orientação: suporta retrato e paisagem.
+- O app mostra um aviso visual quando uma nova versão do Service Worker fica pronta para ativação.
+
+### Atualização de versão do PWA
+
+- Sempre incremente `CACHE_NAME` em [service-worker.js](service-worker.js#L1) quando mudar HTML, bootstrap, manifesto ou arquivos essenciais do app shell.
+- Navegação usa network-first com fallback offline para reduzir risco de o app instalado ficar preso em shell antigo.
+- Se uma atualização já estiver baixada, o app exibe um banner para recarregar e ativar a nova versão.
 
 ## Compatibilidade
 
