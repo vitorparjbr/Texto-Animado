@@ -1,7 +1,8 @@
-const CACHE_NAME = 'textflow-v4';
+const CACHE_NAME = 'textflow-v5';
+const APP_SHELL_URL = './index.html';
 const ASSETS_TO_CACHE = [
     './',
-    './index.html',
+    APP_SHELL_URL,
     './styles/utils.css',
     './styles/main.css',
     './scripts/state.js',
@@ -55,6 +56,27 @@ self.addEventListener('activate', function(event) {
 });
 
 self.addEventListener('fetch', function(event) {
+    if (event.request.method !== 'GET') {
+        return;
+    }
+
+    if (event.request.mode === 'navigate') {
+        event.respondWith(
+            fetch(event.request).then(function(response) {
+                if (response && response.ok) {
+                    var responseClone = response.clone();
+                    caches.open(CACHE_NAME).then(function(cache) {
+                        cache.put(APP_SHELL_URL, responseClone);
+                    });
+                }
+                return response;
+            }).catch(function() {
+                return caches.match(APP_SHELL_URL);
+            })
+        );
+        return;
+    }
+
     event.respondWith(
         caches.match(event.request).then(function(cachedResponse) {
             if (cachedResponse) {
@@ -62,7 +84,7 @@ self.addEventListener('fetch', function(event) {
             }
             return fetch(event.request).then(function(response) {
                 // Cache font files and other GET requests dynamically
-                if (response.ok && event.request.method === 'GET') {
+                if (response.ok) {
                     var responseClone = response.clone();
                     caches.open(CACHE_NAME).then(function(cache) {
                         cache.put(event.request, responseClone);
@@ -70,10 +92,7 @@ self.addEventListener('fetch', function(event) {
                 }
                 return response;
             }).catch(function() {
-                // Offline fallback - return cached index for navigation requests
-                if (event.request.mode === 'navigate') {
-                    return caches.match('./index.html');
-                }
+                return caches.match(event.request);
             });
         })
     );
