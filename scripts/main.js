@@ -53,6 +53,26 @@
         audioTrack.volume = Math.max(0, Math.min(state.audioVolume || 0, 1));
     }
 
+    function isAudioReadyForExport() {
+        return !state.audioSource || !!state.audioBuffer;
+    }
+
+    function updateExportAvailability() {
+        var exportBtn = document.getElementById('exportBtn');
+        var exportHint = document.getElementById('audioExportHint');
+        var mediaRecorderSupported = typeof MediaRecorder !== 'undefined' && (
+            MediaRecorder.isTypeSupported('video/webm') || MediaRecorder.isTypeSupported('video/mp4')
+        );
+        var canExport = mediaRecorderSupported && !state.audioIsDecoding && isAudioReadyForExport();
+
+        exportBtn.disabled = !canExport;
+        exportHint.style.display = canExport ? 'none' : (state.audioSource ? 'block' : 'none');
+
+        if (!mediaRecorderSupported) {
+            exportHint.style.display = 'none';
+        }
+    }
+
     function syncPreviewAudio(forceSeek) {
         if (!state.audioSource || !state.audioDuration || audioTrack.readyState < 1) {
             return;
@@ -243,20 +263,42 @@
         var hasAudio = !!state.audioSource;
         var audioControls = document.getElementById('audioControls');
         var audioSummary = document.getElementById('audioSummary');
+        var audioTimeline = document.getElementById('audioTimeline');
         audioControls.style.display = hasAudio ? 'block' : 'none';
         if (hasAudio) {
             var trimStart = getAudioTrimStart();
             var trimEnd = getAudioTrimEnd();
-            audioSummary.textContent = state.audioFileName + ' • ' + formatSeconds(state.audioDuration) + ' • trecho ' + formatSeconds(trimStart) + ' - ' + formatSeconds(trimEnd);
+            if (state.audioIsDecoding) {
+                audioSummary.textContent = state.audioFileName + ' • processando audio para exportacao...';
+            } else if (!state.audioBuffer) {
+                audioSummary.textContent = state.audioFileName + ' • preview pronto, mas a exportacao com audio nao esta disponivel.';
+            } else {
+                audioSummary.textContent = state.audioFileName + ' • ' + formatSeconds(state.audioDuration) + ' • trecho ' + formatSeconds(trimStart) + ' - ' + formatSeconds(trimEnd);
+            }
             document.getElementById('audioVolume').value = state.audioVolume;
             document.getElementById('audioVolumeValue').textContent = Math.round(state.audioVolume * 100) + '%';
             document.getElementById('audioTrimStart').value = trimStart.toFixed(1);
             document.getElementById('audioTrimEnd').value = trimEnd.toFixed(1);
             document.getElementById('audioFadeIn').value = (state.audioFadeIn || 0).toFixed(1);
             document.getElementById('audioFadeOut').value = (state.audioFadeOut || 0).toFixed(1);
+            if (state.audioDuration > 0) {
+                var selectionLeft = (trimStart / state.audioDuration) * 100;
+                var selectionWidth = ((trimEnd - trimStart) / state.audioDuration) * 100;
+                document.getElementById('audioTimelineSelection').style.left = selectionLeft + '%';
+                document.getElementById('audioTimelineSelection').style.width = selectionWidth + '%';
+                document.getElementById('audioTimelineStart').textContent = formatSeconds(trimStart);
+                document.getElementById('audioTimelineEnd').textContent = formatSeconds(trimEnd);
+                document.getElementById('audioTimelineLength').textContent = 'Trecho ' + formatSeconds(trimEnd - trimStart);
+                audioTimeline.style.display = 'flex';
+            } else {
+                audioTimeline.style.display = 'none';
+            }
         } else {
             audioSummary.textContent = 'Nenhum áudio importado.';
+            audioTimeline.style.display = 'none';
         }
+
+        updateExportAvailability();
 
         // Delay slider
         var delayEl = document.getElementById('layerDelay');

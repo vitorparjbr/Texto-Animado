@@ -252,6 +252,16 @@
                         <p id="audioSummary" class="text-xs text-muted">Nenhum áudio importado.</p>
                     </div>
                     <div id="audioControls" class="space-y-3 hidden">
+                        <div id="audioTimeline" class="audio-timeline hidden" aria-hidden="true">
+                            <div class="audio-timeline-track">
+                                <div id="audioTimelineSelection" class="audio-timeline-selection"></div>
+                            </div>
+                            <div class="audio-timeline-meta">
+                                <span id="audioTimelineStart" class="text-xs text-muted">0.0s</span>
+                                <span id="audioTimelineLength" class="text-xs text-muted">Trecho 0.0s</span>
+                                <span id="audioTimelineEnd" class="text-xs text-muted">0.0s</span>
+                            </div>
+                        </div>
                         <div class="flex items-center gap-3">
                             <label class="text-xs text-muted w-16" for="audioVolume">Volume</label>
                             <input type="range" id="audioVolume" min="0" max="1" step="0.05" value="1" class="flex-1" title="Volume do áudio" aria-label="Volume do áudio">
@@ -318,6 +328,7 @@
                     <div id="progressBar" class="h-full bg-accent w-0"></div>
                 </div>
                 <p id="exportStatus" class="text-xs text-center text-muted hidden"></p>
+                <p id="audioExportHint" class="text-xs text-center text-muted hidden">Aguarde o áudio terminar de processar para exportar.</p>
             </div>
         </div>
     </aside>

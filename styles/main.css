@@ -241,6 +241,37 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 6px; }
     color: #f59e0b;
 }
 
+.audio-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.audio-timeline-track {
+    position: relative;
+    height: 0.5rem;
+    background: var(--border);
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+.audio-timeline-selection {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    background: linear-gradient(90deg, rgba(255, 107, 74, 0.75), rgba(74, 159, 255, 0.8));
+    border-radius: 9999px;
+}
+
+.audio-timeline-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+}
+
 .update-banner {
     position: fixed;
     top: 1rem;

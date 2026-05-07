@@ -61,6 +61,7 @@
         audioFadeOut: 0,
         audioVolume: 1,
         audioBuffer: null,
+        audioIsDecoding: false,
         isPlaying: true,
         globalTime: 0,
         lastTime: 0,

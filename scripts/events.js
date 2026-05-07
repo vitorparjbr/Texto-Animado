@@ -33,6 +33,7 @@
             state.audioFadeOut = 0;
             state.audioVolume = 1;
             state.audioBuffer = null;
+            state.audioIsDecoding = false;
             audioTrack.pause();
             audioTrack.removeAttribute('src');
             audioTrack.load();
@@ -268,12 +269,15 @@
 
             state.audioSource = URL.createObjectURL(file);
             state.audioFileName = file.name;
+            state.audioIsDecoding = true;
             audioTrack.src = state.audioSource;
             audioTrack.load();
+            syncUIFromState();
 
             AudioContextCtor = window.AudioContext || window.webkitAudioContext;
             if (!AudioContextCtor) {
                 state.audioBuffer = null;
+                state.audioIsDecoding = false;
                 showToast('Preview de áudio pronto, mas a exportação com áudio pode não funcionar neste navegador.', 'info');
                 syncUIFromState();
                 return;
@@ -296,15 +300,18 @@
                     throw error;
                 });
             }).then(function(buffer) {
+                state.audioIsDecoding = false;
                 if (!state.audioDuration) {
                     state.audioDuration = buffer.duration;
                     state.audioTrimEnd = buffer.duration;
                     normalizeAudioSettings();
-                    syncUIFromState();
                 }
+                syncUIFromState();
             }).catch(function() {
                 state.audioBuffer = null;
+                state.audioIsDecoding = false;
                 showToast('Nao foi possivel decodificar o audio para exportacao.', 'error');
+                syncUIFromState();
             });
         });
 
