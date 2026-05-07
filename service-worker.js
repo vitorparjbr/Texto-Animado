@@ -1,4 +1,4 @@
-const CACHE_NAME = 'textflow-v11';
+const CACHE_NAME = 'textflow-v12';
 const APP_SHELL_URL = './index.html';
 const ASSETS_TO_CACHE = [
     './',
