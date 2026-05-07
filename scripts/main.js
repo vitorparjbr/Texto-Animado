@@ -33,10 +33,14 @@
         // Skip resize when menu is open: the virtual keyboard opening fires a resize
         // event but we don't want to shrink the canvas while the user is typing.
         if (isMenuOpen()) return;
+        const viewportWidth = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+        const viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        const horizontalPadding = viewportWidth <= 640 ? 16 : 64;
+        const verticalPadding = viewportWidth <= 640 ? 112 : 180;
         const dim = getCanvasDimensions();
-        const maxWidth = Math.min(dim.width, window.innerWidth - 32);
-        const maxHeight = window.innerHeight - 150;
-        const scale = Math.min(maxWidth / dim.width, maxHeight / dim.height);
+        const maxWidth = Math.max(180, viewportWidth - horizontalPadding);
+        const maxHeight = Math.max(180, viewportHeight - verticalPadding);
+        const scale = Math.min(maxWidth / dim.width, maxHeight / dim.height, 1);
         canvas.style.width = (dim.width * scale) + 'px';
         canvas.style.height = (dim.height * scale) + 'px';
     }
@@ -76,6 +80,7 @@
         state.layers.forEach(function(layer) {
             const el = document.createElement('div');
             el.className = 'layer-item' + (layer.id === state.activeLayerId ? ' active' : '');
+            el.dataset.layerId = layer.id;
             el.innerHTML =
                 '<span class="layer-text">' + escapeHtml(layer.text || '(vazio)') + '</span>' +
                 '<div class="layer-actions">' +
@@ -191,21 +196,31 @@
     function openMenu() {
         const menu = document.getElementById('sideMenu');
         const overlay = document.getElementById('menuOverlay');
+        const menuToggle = document.getElementById('menuToggle');
         menu.classList.remove('hidden', 'menu-exit');
         menu.classList.add('menu-enter');
+        menu.setAttribute('aria-hidden', 'false');
         overlay.classList.add('active');
-        document.getElementById('menuToggle').style.display = 'none';
+        menuToggle.setAttribute('aria-expanded', 'true');
+        menuToggle.style.display = 'none';
+        requestAnimationFrame(function() {
+            document.getElementById('closeMenu').focus();
+        });
     }
 
     function closeMenu() {
         const menu = document.getElementById('sideMenu');
         const overlay = document.getElementById('menuOverlay');
+        const menuToggle = document.getElementById('menuToggle');
         menu.classList.remove('menu-enter');
         menu.classList.add('menu-exit');
+        menu.setAttribute('aria-hidden', 'true');
         overlay.classList.remove('active');
-        document.getElementById('menuToggle').style.display = '';
+        menuToggle.setAttribute('aria-expanded', 'false');
+        menuToggle.style.display = '';
         setTimeout(function() {
             menu.classList.add('hidden');
+            menuToggle.focus();
         }, 300);
     }
 

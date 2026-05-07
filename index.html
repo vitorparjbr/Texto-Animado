@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TextFlow - Animador de Texto</title>
 
     <!-- PWA Meta Tags -->
@@ -27,9 +27,9 @@
             <button id="reloadAppBtn" class="update-banner-btn primary" type="button">Atualizar</button>
         </div>
     </div>
-    <div id="toast" class="toast"></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-    <button id="menuToggle" class="fixed top-4 left-4 z-50 glass-panel p-3 rounded-xl btn-control hover-accent-border" aria-label="Abrir menu">
+    <button id="menuToggle" class="fixed top-4 left-4 z-50 glass-panel p-3 rounded-xl btn-control hover-accent-border" aria-label="Abrir menu" aria-controls="sideMenu" aria-expanded="false">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="3" y1="6" x2="21" y2="6"></line>
             <line x1="3" y1="12" x2="21" y2="12"></line>
@@ -37,7 +37,7 @@
         </svg>
     </button>
 
-    <aside id="sideMenu" class="fixed left-0 top-0 h-full w-80 glass-panel z-40 overflow-hidden hidden">
+    <aside id="sideMenu" class="fixed left-0 top-0 h-full w-80 glass-panel z-40 overflow-hidden hidden" aria-hidden="true" tabindex="-1">
         <div class="h-full flex flex-col">
             <div class="p-4 border-b border-themed flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Configurações</h2>
@@ -260,7 +260,7 @@
                     </svg>
                     Exportar Vídeo
                 </button>
-                <p id="mediaRecorderWarning" class="text-xs text-center hidden" style="color:#f59e0b;">Seu navegador não suporta exportação de vídeo.</p>
+                <p id="mediaRecorderWarning" class="text-xs text-center hidden media-recorder-warning">Seu navegador não suporta exportação de vídeo.</p>
                 <div class="space-y-1">
                     <label class="text-xs text-muted" for="saveSlot">Slot de salvamento</label>
                     <select id="saveSlot" class="select-field w-full p-2 rounded-lg text-xs" title="Selecionar slot de salvamento" aria-label="Selecionar slot de salvamento">
@@ -294,7 +294,7 @@
                 <img id="imageBg" class="absolute inset-0 w-full h-full object-cover media-bg-source" alt="">
             </div>
 
-            <div class="absolute bottom-4 left-1\/2 -translate-x-1\/2 flex items-center gap-3 glass-panel rounded-full px-4 py-2">
+            <div class="control-dock absolute bottom-4 left-1\/2 -translate-x-1\/2 flex items-center gap-3 glass-panel rounded-full px-4 py-2">
                 <button id="playPauseBtn" class="p-2 hover-card-bg rounded-full transition-colors" aria-label="Play/Pause">
                     <svg id="playIcon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <polygon points="5,3 19,12 5,21"></polygon>

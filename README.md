@@ -31,7 +31,7 @@ O TextFlow permite:
 
 ## Estrutura do Projeto
 
-```
+```text
 index.html            # Página principal
 manifest.json         # Manifesto PWA (ícones separados any/maskable, shortcuts)
 service-worker.js     # Cache offline (textflow-v6)
@@ -53,10 +53,11 @@ icons/
 
 É um app estático — não há build necessário.
 
-1. Abra o arquivo `index.html` em um navegador moderno (Chrome ou Edge recomendados).
-2. Ajuste as opções no menu lateral (ícone ☰).
-3. Use os controles de reprodução para pré-visualizar.
-4. Clique em **"Exportar Vídeo"** → assista o preview → baixe ou descarte.
+1. Sirva a pasta do projeto em um servidor local simples e abra `index.html` em um navegador moderno (Chrome ou Edge recomendados).
+2. Exemplo rápido: `python -m http.server 8000` e depois acesse `http://localhost:8000/`.
+3. Ajuste as opções no menu lateral (ícone ☰).
+4. Use os controles de reprodução para pré-visualizar.
+5. Clique em **"Exportar Vídeo"** → assista o preview → baixe ou descarte.
 
 ## Fluxo da Aplicação
 
@@ -69,7 +70,7 @@ icons/
 ## Interface do Menu Lateral
 
 | Seção | O que controla |
-|---|---|
+| --- | --- |
 | **Texto** | Conteúdo do texto da camada ativa |
 | **Velocidade** | Slider de 0.5× a 5× (global) |
 | **Atraso da camada** | Slider de 0s a 10s — delay de entrada da camada ativa |
@@ -91,7 +92,7 @@ icons/
 
 Cada camada tem seu próprio **atraso de entrada** (`startDelay`, em segundos). O modelo usa `state.globalTime` acumulado no loop:
 
-```
+```text
 t_layer = clamp((globalTime - layer.startDelay) / animDuration, 0, 1)
 ```
 
@@ -122,7 +123,7 @@ Fallback automático de MIME: `video/webm;codecs=vp9` → `video/webm` → `vide
 ## Atalhos de Teclado
 
 | Atalho | Ação |
-|---|---|
+| --- | --- |
 | `Espaço` | Play / Pause |
 | `R` | Reiniciar animação (`globalTime = 0`) |
 | `M` | Abrir / fechar menu |
@@ -161,7 +162,7 @@ Chaves no `localStorage`: `textflow_project_slot1` a `textflow_project_slot5`.
 ## Compatibilidade
 
 | Navegador | Suporte |
-|---|---|
+| --- | --- |
 | Chrome / Edge Android | ✅ Completo (PWA, canvas, exportação, compartilhamento) |
 | Chrome / Edge desktop | ✅ Completo |
 | Firefox | ⚠️ Canvas OK; exportação `.webm`; compartilhamento não suportado |

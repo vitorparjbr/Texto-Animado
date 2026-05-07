@@ -3,7 +3,6 @@
         const {
             canvas,
             state,
-            getActiveLayer,
             getTotalTextHeight,
             updatePlayPauseUI,
             resetAnimation,
@@ -47,18 +46,23 @@
                 if (e.data && e.data.size > 0) chunks.push(e.data);
             };
 
-            const anim = getActiveLayer().animationType;
-            const isScroll = anim === 'scrollUp' || anim === 'scrollDown';
-            let duration;
+            const duration = state.layers.reduce(function(maxDuration, layer) {
+                const anim = layer.animationType;
+                const isScroll = anim === 'scrollUp' || anim === 'scrollDown';
+                const startDelayMs = (layer.startDelay || 0) * 1000;
+                let layerDurationMs;
 
-            if (isScroll) {
-                const textHeight = getTotalTextHeight();
-                const totalDistance = canvas.height + textHeight + 100;
-                const pixelsPerSecond = state.speed * 60;
-                duration = (totalDistance / pixelsPerSecond) * 1000;
-            } else {
-                duration = Math.max(500, (5 / state.speed) * 1000);
-            }
+                if (isScroll) {
+                    const textHeight = getTotalTextHeight();
+                    const totalDistance = canvas.height + textHeight + 100;
+                    const pixelsPerSecond = state.speed * 60;
+                    layerDurationMs = (totalDistance / pixelsPerSecond) * 1000;
+                } else {
+                    layerDurationMs = Math.max(500, (5 / state.speed) * 1000);
+                }
+
+                return Math.max(maxDuration, startDelayMs + layerDurationMs);
+            }, 500);
 
             const startGlobalTime = state.globalTime;
             const wasPlaying = state.isPlaying;

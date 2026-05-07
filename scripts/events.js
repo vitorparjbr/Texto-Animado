@@ -30,7 +30,10 @@
         var textInputTimer;
         document.getElementById('textInput').addEventListener('input', function(e) {
             getActiveLayer().text = e.target.value || '';
-            syncUIFromState();
+            var activeLayerText = document.querySelector('.layer-item.active .layer-text');
+            if (activeLayerText) {
+                activeLayerText.textContent = e.target.value || '(vazio)';
+            }
             clearTimeout(textInputTimer);
             textInputTimer = setTimeout(saveUndoState, 600);
         });
@@ -283,6 +286,15 @@
 
                 var data = JSON.parse(raw);
                 saveUndoState();
+                if (state.mediaSource) URL.revokeObjectURL(state.mediaSource);
+                state.mediaType = null;
+                state.mediaSource = null;
+                videoBg.pause();
+                videoBg.removeAttribute('src');
+                videoBg.load();
+                imageBg.removeAttribute('src');
+                document.getElementById('removeMedia').style.display = 'none';
+                document.getElementById('mediaInput').value = '';
                 state.layers = data.layers || state.layers;
                 state.activeLayerId = data.activeLayerId || state.layers[0].id;
                 state.nextLayerId = data.nextLayerId || state.layers.length + 1;
