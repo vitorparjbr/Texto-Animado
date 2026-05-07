@@ -249,6 +249,10 @@
                     <div class="space-y-2">
                         <label class="text-xs text-muted" for="audioInput">Importar áudio</label>
                         <input type="file" id="audioInput" accept="audio/*" class="input-field w-full p-2 rounded-lg text-xs" title="Importar trilha de áudio" aria-label="Importar trilha de áudio">
+                        <label id="audioUseBackgroundWrap" class="hidden flex items-center gap-2 text-xs text-muted">
+                            <input type="checkbox" id="audioUseBackgroundVideo" class="accent-current">
+                            Usar áudio do vídeo de fundo
+                        </label>
                         <p id="audioSummary" class="text-xs text-muted">Nenhum áudio importado.</p>
                     </div>
                     <div id="audioControls" class="space-y-3 hidden">

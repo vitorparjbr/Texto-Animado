@@ -15,6 +15,7 @@ O TextFlow permite:
 - Definir formato do canvas (9:16, 1:1, 16:9) e resolução (480p, 720p, 1080p)
 - Usar fundo transparente, cor sólida, imagem ou vídeo importado
 - Importar uma trilha de áudio com volume, corte, fade in e fade out
+- Usar o áudio do vídeo de fundo como alternativa à trilha importada
 - Salvar projetos em até **5 slots independentes** via `localStorage`
 - Desfazer e refazer alterações (undo/redo, até 50 estados)
 - Exportar o resultado como vídeo com **pré-visualização antes de baixar**
@@ -35,7 +36,7 @@ O TextFlow permite:
 ```text
 index.html            # Página principal
 manifest.json         # Manifesto PWA (ícones separados any/maskable, shortcuts)
-service-worker.js     # Cache offline (textflow-v9)
+service-worker.js     # Cache offline (textflow-v11)
 styles/
   utils.css           # Utilitários CSS locais (substituto do Tailwind CDN)
   main.css            # Estilos globais e componentes visuais
@@ -84,7 +85,7 @@ icons/
 | **Formato** | 9:16, 1:1, 16:9 |
 | **Resolução** | 480p, 720p, 1080p |
 | **Fundo** | Transparente, cor sólida, imagem ou vídeo |
-| **Áudio** | Importar trilha, ajustar volume, início, fim, fade in e fade out |
+| **Áudio** | Importar trilha ou usar o áudio do vídeo de fundo, com volume, início, fim, fade in e fade out |
 | **Camadas** | Adicionar, duplicar, remover, alternar |
 | **Slot** | Seletor de 1 a 5 para salvamento independente |
 | **Salvar / Carregar / Limpar** | Opera no slot selecionado |
@@ -118,7 +119,7 @@ t_layer = clamp((globalTime - layer.startDelay) / animDuration, 0, 1)
 4. Clique **"Baixar"** para salvar o arquivo localmente
 5. Clique **"Descartar"** para cancelar (o blob é liberado da memória após 30s)
 
-Se houver uma trilha de áudio importada, a exportação incorpora o trecho configurado com volume, fade in e fade out.
+Se houver uma trilha importada ou o áudio do vídeo de fundo estiver selecionado, a exportação incorpora o trecho configurado com volume, fade in e fade out.
 
 > Se o navegador não suportar `MediaRecorder`, o botão "Exportar Vídeo" é desabilitado automaticamente com um aviso explicativo.
 
@@ -146,7 +147,7 @@ Chaves no `localStorage`: `textflow_project_slot1` a `textflow_project_slot5`.
 
 ## PWA / Offline
 
-- Service Worker `textflow-v9` cacheia o app shell e assets estáticos na primeira abertura online.
+- Service Worker `textflow-v11` cacheia o app shell e assets estáticos na primeira abertura online.
 - Após a primeira visita, o app funciona completamente offline.
 - Instalável em Android via Chrome ("Adicionar à tela inicial" ou prompt automático).
 - Ícones com entradas separadas `"purpose": "any"` e `"purpose": "maskable"` — exibidos corretamente em launchers adaptivos do Android.
@@ -178,7 +179,7 @@ Chaves no `localStorage`: `textflow_project_slot1` a `textflow_project_slot5`.
 - Tailwind CDN foi removido; os estilos utilitários locais (`utils.css`) cobrem todas as classes usadas, mas não suportam JIT dinâmico.
 - O modal de preview usa o mesmo blob que a exportação — em dispositivos com pouca memória, vídeos longos podem ser lentos para carregar.
 - Fundos importados (imagem ou vídeo) não são salvos nos slots — são blob URLs temporários criados no momento do import.
-- O áudio é limitado a uma única trilha por projeto; mixagem de múltiplas faixas não está implementada.
+- O áudio é limitado a uma única fonte por projeto; você pode escolher entre trilha importada ou áudio do vídeo de fundo, mas não misturar ambas.
 
 ## Licença
 

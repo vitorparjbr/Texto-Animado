@@ -22,6 +22,17 @@
             runExport
         } = deps;
 
+        function hasBackgroundVideoAudio() {
+            return state.mediaType === 'video' && !!state.mediaSource;
+        }
+
+        function getActiveAudioDuration() {
+            if (state.audioSourceMode === 'backgroundVideo' && hasBackgroundVideoAudio()) {
+                return Number.isFinite(videoBg.duration) ? videoBg.duration : 0;
+            }
+            return state.audioDuration || 0;
+        }
+
         function clearAudioState() {
             if (state.audioSource) URL.revokeObjectURL(state.audioSource);
             state.audioSource = null;
@@ -40,6 +51,19 @@
             document.getElementById('audioInput').value = '';
         }
 
+        function applyAudioSourceMode(nextMode, resetTrim) {
+            state.audioSourceMode = nextMode === 'backgroundVideo' && hasBackgroundVideoAudio() ? 'backgroundVideo' : 'imported';
+
+            if (resetTrim) {
+                state.audioTrimStart = 0;
+                state.audioTrimEnd = getActiveAudioDuration();
+                state.audioFadeIn = 0;
+                state.audioFadeOut = 0;
+            }
+
+            normalizeAudioSettings();
+        }
+
         function clampAudioValue(value, fallback) {
             var parsed = parseFloat(value);
             if (!Number.isFinite(parsed)) return fallback;
@@ -47,10 +71,11 @@
         }
 
         function normalizeAudioSettings() {
-            if (!state.audioDuration) return;
-            state.audioTrimStart = Math.min(clampAudioValue(state.audioTrimStart, 0), state.audioDuration);
-            state.audioTrimEnd = Math.min(clampAudioValue(state.audioTrimEnd, state.audioDuration), state.audioDuration);
-            state.audioTrimEnd = Math.max(state.audioTrimStart, state.audioTrimEnd || state.audioDuration);
+            var activeDuration = getActiveAudioDuration();
+            if (!activeDuration) return;
+            state.audioTrimStart = Math.min(clampAudioValue(state.audioTrimStart, 0), activeDuration);
+            state.audioTrimEnd = Math.min(clampAudioValue(state.audioTrimEnd, activeDuration), activeDuration);
+            state.audioTrimEnd = Math.max(state.audioTrimStart, state.audioTrimEnd || activeDuration);
             var clipDuration = Math.max(0, state.audioTrimEnd - state.audioTrimStart);
             state.audioFadeIn = Math.min(clampAudioValue(state.audioFadeIn, 0), clipDuration);
             state.audioFadeOut = Math.min(clampAudioValue(state.audioFadeOut, 0), clipDuration);
@@ -239,25 +264,39 @@
             if (file.type.startsWith('video/')) {
                 state.mediaType = 'video';
                 state.mediaSource = url;
+                state.mediaFileName = file.name;
                 videoBg.src = url;
-                videoBg.play();
+                if (!state.audioSource) {
+                    applyAudioSourceMode('backgroundVideo', true);
+                }
+                videoBg.play().catch(function() {});
             } else if (file.type.startsWith('image/')) {
                 state.mediaType = 'image';
                 state.mediaSource = url;
+                state.mediaFileName = file.name;
                 imageBg.src = url;
+                if (state.audioSourceMode === 'backgroundVideo') {
+                    applyAudioSourceMode('imported', true);
+                }
             }
 
             document.getElementById('removeMedia').style.display = 'block';
+            syncUIFromState();
         });
 
         document.getElementById('removeMedia').addEventListener('click', function() {
             if (state.mediaSource) URL.revokeObjectURL(state.mediaSource);
             state.mediaType = null;
             state.mediaSource = null;
+            state.mediaFileName = '';
             videoBg.src = '';
             imageBg.src = '';
             document.getElementById('removeMedia').style.display = 'none';
             document.getElementById('mediaInput').value = '';
+            if (state.audioSourceMode === 'backgroundVideo') {
+                applyAudioSourceMode('imported', true);
+            }
+            syncUIFromState();
         });
 
         document.getElementById('audioInput').addEventListener('change', function(e) {
@@ -269,6 +308,7 @@
 
             state.audioSource = URL.createObjectURL(file);
             state.audioFileName = file.name;
+            state.audioSourceMode = 'imported';
             state.audioIsDecoding = true;
             audioTrack.src = state.audioSource;
             audioTrack.load();
@@ -303,9 +343,8 @@
                 state.audioIsDecoding = false;
                 if (!state.audioDuration) {
                     state.audioDuration = buffer.duration;
-                    state.audioTrimEnd = buffer.duration;
-                    normalizeAudioSettings();
                 }
+                applyAudioSourceMode('imported', true);
                 syncUIFromState();
             }).catch(function() {
                 state.audioBuffer = null;
@@ -315,7 +354,20 @@
             });
         });
 
+        document.getElementById('audioUseBackgroundVideo').addEventListener('change', function(e) {
+            saveUndoState();
+            applyAudioSourceMode(e.target.checked ? 'backgroundVideo' : 'imported', true);
+            resetAnimation();
+            syncUIFromState();
+        });
+
         audioTrack.addEventListener('loadedmetadata', function() {
+            if (state.audioSourceMode === 'backgroundVideo' && hasBackgroundVideoAudio()) {
+                normalizeAudioSettings();
+                syncUIFromState();
+                syncPreviewAudio(true);
+                return;
+            }
             if (!state.audioSource) return;
             state.audioDuration = audioTrack.duration || state.audioDuration || 0;
             if (!state.audioTrimEnd && state.audioDuration) {
@@ -326,8 +378,21 @@
             syncPreviewAudio(true);
         });
 
+        videoBg.addEventListener('loadedmetadata', function() {
+            if (state.audioSourceMode === 'backgroundVideo') {
+                if (!state.audioTrimEnd || state.audioTrimEnd > getActiveAudioDuration()) {
+                    state.audioTrimEnd = getActiveAudioDuration();
+                }
+                normalizeAudioSettings();
+                syncUIFromState();
+                resetAnimation();
+                return;
+            }
+            syncUIFromState();
+        });
+
         audioTrack.addEventListener('timeupdate', function() {
-            if (!state.audioDuration) return;
+            if (!getActiveAudioDuration()) return;
             normalizeAudioSettings();
             if (audioTrack.currentTime >= state.audioTrimEnd - 0.02) {
                 audioTrack.pause();
@@ -352,7 +417,7 @@
 
         document.getElementById('audioTrimEnd').addEventListener('change', function(e) {
             saveUndoState();
-            state.audioTrimEnd = clampAudioValue(e.target.value, state.audioDuration || 0);
+            state.audioTrimEnd = clampAudioValue(e.target.value, getActiveAudioDuration());
             normalizeAudioSettings();
             resetAnimation();
             syncUIFromState();
@@ -374,6 +439,7 @@
 
         document.getElementById('removeAudio').addEventListener('click', function() {
             clearAudioState();
+            state.audioSourceMode = 'imported';
             syncUIFromState();
         });
 
@@ -449,6 +515,7 @@
                 imageBg.removeAttribute('src');
                 document.getElementById('removeMedia').style.display = 'none';
                 document.getElementById('mediaInput').value = '';
+                state.mediaFileName = '';
                 clearAudioState();
                 state.layers = data.layers || state.layers;
                 state.activeLayerId = data.activeLayerId || state.layers[0].id;
@@ -458,6 +525,7 @@
                 state.resolution = data.resolution || 720;
                 state.bgTransparent = data.bgTransparent !== undefined ? data.bgTransparent : true;
                 state.bgColor = data.bgColor || '#0a0a0f';
+                state.audioSourceMode = 'imported';
                 state.audioTrimStart = 0;
                 state.audioTrimEnd = 0;
                 state.audioFadeIn = 0;

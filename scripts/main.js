@@ -26,10 +26,73 @@
         }, 2500);
     }
 
+    function hasImportedAudio() {
+        return !!state.audioSource;
+    }
+
+    function hasBackgroundVideoAudio() {
+        return state.mediaType === 'video' && !!state.mediaSource;
+    }
+
+    function getActiveAudioMode() {
+        if (state.audioSourceMode === 'backgroundVideo' && hasBackgroundVideoAudio()) {
+            return 'backgroundVideo';
+        }
+        if (hasImportedAudio()) {
+            return 'imported';
+        }
+        return 'none';
+    }
+
+    function getActiveAudioDuration() {
+        if (getActiveAudioMode() === 'backgroundVideo') {
+            return Number.isFinite(videoBg.duration) ? videoBg.duration : 0;
+        }
+        return state.audioDuration || 0;
+    }
+
+    function getActiveAudioLabel() {
+        if (getActiveAudioMode() === 'backgroundVideo') {
+            return (state.mediaFileName || 'Video de fundo') + ' • audio do video';
+        }
+        return state.audioFileName;
+    }
+
+    function getActivePreviewAudioSource() {
+        if (getActiveAudioMode() === 'backgroundVideo') {
+            return state.mediaSource;
+        }
+        return state.audioSource;
+    }
+
+    function ensurePreviewAudioSource() {
+        var nextSource = getActivePreviewAudioSource();
+        var currentSource = audioTrack.getAttribute('src');
+
+        if (!nextSource) {
+            if (currentSource) {
+                audioTrack.pause();
+                audioTrack.removeAttribute('src');
+                audioTrack.load();
+            }
+            return;
+        }
+
+        if (currentSource !== nextSource) {
+            audioTrack.pause();
+            audioTrack.src = nextSource;
+            audioTrack.load();
+        }
+    }
+
     function resetAnimation() {
         stateReset();
         if (state.mediaType === 'video') {
-            videoBg.currentTime = 0;
+            if (getActiveAudioMode() === 'backgroundVideo') {
+                syncBackgroundVideo(true);
+            } else {
+                videoBg.currentTime = 0;
+            }
         }
         syncPreviewAudio(true);
     }
@@ -39,11 +102,11 @@
     }
 
     function getAudioTrimStart() {
-        return Math.max(0, Math.min(state.audioTrimStart || 0, state.audioDuration || 0));
+        return Math.max(0, Math.min(state.audioTrimStart || 0, getActiveAudioDuration()));
     }
 
     function getAudioTrimEnd() {
-        const duration = state.audioDuration || 0;
+        const duration = getActiveAudioDuration();
         if (!duration) return 0;
         const rawEnd = state.audioTrimEnd || duration;
         return Math.max(getAudioTrimStart(), Math.min(rawEnd, duration));
@@ -54,27 +117,78 @@
     }
 
     function isAudioReadyForExport() {
-        return !state.audioSource || !!state.audioBuffer;
+        var activeAudioMode = getActiveAudioMode();
+        if (activeAudioMode === 'imported') {
+            return !!state.audioBuffer;
+        }
+        if (activeAudioMode === 'backgroundVideo') {
+            return hasBackgroundVideoAudio() && (videoBg.readyState >= 1 || Number.isFinite(videoBg.duration));
+        }
+        return true;
     }
 
     function updateExportAvailability() {
         var exportBtn = document.getElementById('exportBtn');
         var exportHint = document.getElementById('audioExportHint');
+        var activeAudioMode = getActiveAudioMode();
         var mediaRecorderSupported = typeof MediaRecorder !== 'undefined' && (
             MediaRecorder.isTypeSupported('video/webm') || MediaRecorder.isTypeSupported('video/mp4')
         );
-        var canExport = mediaRecorderSupported && !state.audioIsDecoding && isAudioReadyForExport();
+        var canExport = mediaRecorderSupported && !(activeAudioMode === 'imported' && state.audioIsDecoding) && isAudioReadyForExport();
 
         exportBtn.disabled = !canExport;
-        exportHint.style.display = canExport ? 'none' : (state.audioSource ? 'block' : 'none');
+        if (mediaRecorderSupported && !canExport && activeAudioMode === 'imported' && state.audioIsDecoding) {
+            exportHint.textContent = 'Aguarde o audio terminar de processar para exportar.';
+            exportHint.style.display = 'block';
+        } else if (mediaRecorderSupported && !canExport && activeAudioMode === 'backgroundVideo') {
+            exportHint.textContent = 'Aguarde o video de fundo carregar para usar o audio dele na exportacao.';
+            exportHint.style.display = 'block';
+        } else {
+            exportHint.style.display = 'none';
+        }
 
         if (!mediaRecorderSupported) {
             exportHint.style.display = 'none';
         }
     }
 
+    function syncBackgroundVideo(forceSeek) {
+        var trimStart;
+        var trimEnd;
+        var targetTime;
+
+        if (getActiveAudioMode() !== 'backgroundVideo' || state.mediaType !== 'video' || videoBg.readyState < 1) {
+            return;
+        }
+
+        trimStart = getAudioTrimStart();
+        trimEnd = getAudioTrimEnd();
+        targetTime = Math.min(trimEnd, trimStart + state.globalTime);
+
+        if (
+            forceSeek ||
+            videoBg.currentTime < trimStart ||
+            videoBg.currentTime > trimEnd ||
+            Math.abs(videoBg.currentTime - targetTime) > 0.25
+        ) {
+            try {
+                videoBg.currentTime = targetTime;
+            } catch (error) {
+                // Ignore transient seek failures while metadata is loading.
+            }
+        }
+
+        if (state.isPlaying && targetTime < trimEnd - 0.05) {
+            videoBg.play().catch(function() {});
+        } else {
+            videoBg.pause();
+        }
+    }
+
     function syncPreviewAudio(forceSeek) {
-        if (!state.audioSource || !state.audioDuration || audioTrack.readyState < 1) {
+        ensurePreviewAudioSource();
+
+        if (getActiveAudioMode() === 'none' || !getActiveAudioDuration() || audioTrack.readyState < 1) {
             return;
         }
 
@@ -139,8 +253,13 @@
         state.isPlaying = !state.isPlaying;
         updatePlayPauseUI();
         if (state.mediaType === 'video') {
-            if (state.isPlaying) videoBg.play();
-            else videoBg.pause();
+            if (getActiveAudioMode() === 'backgroundVideo') {
+                syncBackgroundVideo(true);
+            } else if (state.isPlaying) {
+                videoBg.play().catch(function() {});
+            } else {
+                videoBg.pause();
+            }
         }
         syncPreviewAudio(true);
     }
@@ -260,20 +379,27 @@
         document.getElementById('bgColorBtn').classList.toggle('active', !state.bgTransparent);
         document.getElementById('bgColorPicker').style.display = state.bgTransparent ? 'none' : 'block';
 
-        var hasAudio = !!state.audioSource;
+        var activeAudioMode = getActiveAudioMode();
+        var hasAudio = activeAudioMode !== 'none';
+        var backgroundAudioWrap = document.getElementById('audioUseBackgroundWrap');
+        var backgroundAudioToggle = document.getElementById('audioUseBackgroundVideo');
         var audioControls = document.getElementById('audioControls');
         var audioSummary = document.getElementById('audioSummary');
         var audioTimeline = document.getElementById('audioTimeline');
+        backgroundAudioWrap.style.display = hasBackgroundVideoAudio() ? 'flex' : 'none';
+        backgroundAudioToggle.checked = activeAudioMode === 'backgroundVideo';
         audioControls.style.display = hasAudio ? 'block' : 'none';
         if (hasAudio) {
             var trimStart = getAudioTrimStart();
             var trimEnd = getAudioTrimEnd();
-            if (state.audioIsDecoding) {
-                audioSummary.textContent = state.audioFileName + ' • processando audio para exportacao...';
-            } else if (!state.audioBuffer) {
-                audioSummary.textContent = state.audioFileName + ' • preview pronto, mas a exportacao com audio nao esta disponivel.';
+            if (activeAudioMode === 'imported' && state.audioIsDecoding) {
+                audioSummary.textContent = getActiveAudioLabel() + ' • processando audio para exportacao...';
+            } else if (activeAudioMode === 'backgroundVideo' && !getActiveAudioDuration()) {
+                audioSummary.textContent = getActiveAudioLabel() + ' • carregando audio do video...';
+            } else if (activeAudioMode === 'imported' && !state.audioBuffer) {
+                audioSummary.textContent = getActiveAudioLabel() + ' • preview pronto, mas a exportacao com audio nao esta disponivel.';
             } else {
-                audioSummary.textContent = state.audioFileName + ' • ' + formatSeconds(state.audioDuration) + ' • trecho ' + formatSeconds(trimStart) + ' - ' + formatSeconds(trimEnd);
+                audioSummary.textContent = getActiveAudioLabel() + ' • ' + formatSeconds(getActiveAudioDuration()) + ' • trecho ' + formatSeconds(trimStart) + ' - ' + formatSeconds(trimEnd);
             }
             document.getElementById('audioVolume').value = state.audioVolume;
             document.getElementById('audioVolumeValue').textContent = Math.round(state.audioVolume * 100) + '%';
@@ -281,9 +407,9 @@
             document.getElementById('audioTrimEnd').value = trimEnd.toFixed(1);
             document.getElementById('audioFadeIn').value = (state.audioFadeIn || 0).toFixed(1);
             document.getElementById('audioFadeOut').value = (state.audioFadeOut || 0).toFixed(1);
-            if (state.audioDuration > 0) {
-                var selectionLeft = (trimStart / state.audioDuration) * 100;
-                var selectionWidth = ((trimEnd - trimStart) / state.audioDuration) * 100;
+            if (getActiveAudioDuration() > 0) {
+                var selectionLeft = (trimStart / getActiveAudioDuration()) * 100;
+                var selectionWidth = ((trimEnd - trimStart) / getActiveAudioDuration()) * 100;
                 document.getElementById('audioTimelineSelection').style.left = selectionLeft + '%';
                 document.getElementById('audioTimelineSelection').style.width = selectionWidth + '%';
                 document.getElementById('audioTimelineStart').textContent = formatSeconds(trimStart);
@@ -294,7 +420,9 @@
                 audioTimeline.style.display = 'none';
             }
         } else {
-            audioSummary.textContent = 'Nenhum áudio importado.';
+            audioSummary.textContent = hasBackgroundVideoAudio()
+                ? 'Importe uma trilha ou marque a opcao para usar o audio do video de fundo.'
+                : 'Nenhum áudio importado.';
             audioTimeline.style.display = 'none';
         }
 
@@ -385,7 +513,11 @@
             state.globalTime += delta;
         }
 
-        if (state.audioSource) {
+        if (getActiveAudioMode() === 'backgroundVideo') {
+            syncBackgroundVideo(false);
+        }
+
+        if (getActiveAudioMode() !== 'none') {
             syncPreviewAudio(false);
         }
 
@@ -424,6 +556,7 @@
                 cancelAnimationFrame(state.animationId);
                 state.animationId = null;
             }
+            videoBg.pause();
             if (!audioTrack.paused) {
                 audioTrack.pause();
             }
@@ -432,6 +565,7 @@
                 state.lastTime = 0;
                 state.animationId = requestAnimationFrame(animate);
             }
+            syncBackgroundVideo(true);
             syncPreviewAudio(true);
         }
     });
