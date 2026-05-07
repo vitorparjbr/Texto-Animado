@@ -1,5 +1,6 @@
 (() => {
     function getSupportedMimeType(hasAudio) {
+        if (typeof MediaRecorder === 'undefined') return '';
         const candidates = hasAudio
             ? [
                 'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
@@ -176,10 +177,6 @@
             await waitForMediaElementEvent(sourceVideo, 'loadedmetadata');
         }
 
-        if (sourceVideo.readyState < 2) {
-            await waitForMediaElementEvent(sourceVideo, 'canplay');
-        }
-
         if (trimStart > 0) {
             sourceVideo.currentTime = trimStart;
             await waitForMediaElementEvent(sourceVideo, 'seeked');
@@ -251,6 +248,10 @@
         recordingBadge.style.display = 'inline-block';
 
         try {
+            if (typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') {
+                throw new Error('Exportação de vídeo não é suportada neste navegador. Use o Chrome para Android ou um computador.');
+            }
+
             const activeAudioMode = getActiveAudioMode(state);
             let mimeType = getSupportedMimeType(activeAudioMode !== 'none');
             if (!mimeType) {
