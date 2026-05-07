@@ -168,7 +168,6 @@
         let stopTimer;
 
         sourceVideo.preload = 'auto';
-        sourceVideo.muted = true;
         sourceVideo.playsInline = true;
         sourceVideo.src = state.mediaSource;
 
