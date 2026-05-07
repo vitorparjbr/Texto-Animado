@@ -110,28 +110,46 @@
             previewVideo.src = previewUrl;
             previewModal.classList.remove('hidden');
 
+            function closePreview() {
+                // Delay revoke so the download/share can start before the URL is invalidated
+                setTimeout(function() { URL.revokeObjectURL(previewUrl); }, 30000);
+                previewModal.classList.add('hidden');
+                previewVideo.src = '';
+                statusEl.style.display = 'none';
+                progressContainer.style.display = 'none';
+                progressBar.style.width = '0%';
+            }
+
+            // Web Share API (Android Chrome)
+            var shareBtn = document.getElementById('previewShare');
+            var canShareFiles = navigator.canShare && navigator.canShare({
+                files: [new File([blob], 'texto-animado.' + ext2, { type: mimeType })]
+            });
+            if (shareBtn) {
+                if (canShareFiles) {
+                    shareBtn.classList.remove('hidden');
+                    shareBtn.onclick = function() {
+                        var file = new File([blob], 'texto-animado.' + ext2, { type: mimeType });
+                        navigator.share({ files: [file], title: 'TextFlow - Texto Animado' }).catch(function() {});
+                        closePreview();
+                    };
+                } else {
+                    shareBtn.classList.add('hidden');
+                }
+            }
+
             document.getElementById('previewDownload').onclick = function() {
                 var anchor = document.createElement('a');
                 anchor.href = previewUrl;
                 anchor.download = 'texto-animado.' + ext2;
                 anchor.click();
-                URL.revokeObjectURL(previewUrl);
-                previewModal.classList.add('hidden');
-                previewVideo.src = '';
+                closePreview();
                 showToast('Vídeo baixado!', 'success');
-                statusEl.style.display = 'none';
-                progressContainer.style.display = 'none';
-                progressBar.style.width = '0%';
             };
 
             document.getElementById('previewDiscard').onclick = function() {
-                URL.revokeObjectURL(previewUrl);
-                previewModal.classList.add('hidden');
-                previewVideo.src = '';
+                closePreview();
                 showToast('Gravação descartada', 'info');
-                statusEl.style.display = 'none';
-                progressContainer.style.display = 'none';
-                progressBar.style.width = '0%';
             };
         } catch (error) {
             console.error('Export error:', error);

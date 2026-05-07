@@ -30,6 +30,9 @@
     }
 
     function handleResize() {
+        // Skip resize when menu is open: the virtual keyboard opening fires a resize
+        // event but we don't want to shrink the canvas while the user is typing.
+        if (isMenuOpen()) return;
         const dim = getCanvasDimensions();
         const maxWidth = Math.min(dim.width, window.innerWidth - 32);
         const maxHeight = window.innerHeight - 150;
@@ -273,6 +276,37 @@
     });
 
     window.addEventListener('resize', handleResize);
+
+    // Pause animation loop when tab is hidden to save battery
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            if (state.animationId) {
+                cancelAnimationFrame(state.animationId);
+                state.animationId = null;
+            }
+        } else {
+            if (!state.animationId) {
+                state.lastTime = 0;
+                state.animationId = requestAnimationFrame(animate);
+            }
+        }
+    });
+
+    // Swipe from left edge to open menu (mobile)
+    var swipeTouchStartX = 0;
+    var swipeTouchStartY = 0;
+    document.addEventListener('touchstart', function(e) {
+        swipeTouchStartX = e.touches[0].clientX;
+        swipeTouchStartY = e.touches[0].clientY;
+    }, { passive: true });
+    document.addEventListener('touchend', function(e) {
+        if (isMenuOpen()) return;
+        var dx = e.changedTouches[0].clientX - swipeTouchStartX;
+        var dy = Math.abs(e.changedTouches[0].clientY - swipeTouchStartY);
+        if (swipeTouchStartX < 30 && dx > 60 && dy < 80) {
+            openMenu();
+        }
+    }, { passive: true });
 
     initCanvas();
     syncUIFromState();

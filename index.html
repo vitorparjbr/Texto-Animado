@@ -260,6 +260,7 @@
                     </svg>
                     Exportar Vídeo
                 </button>
+                <p id="mediaRecorderWarning" class="text-xs text-center hidden" style="color:#f59e0b;">Seu navegador não suporta exportação de vídeo.</p>
                 <div class="space-y-1">
                     <label class="text-xs text-muted" for="saveSlot">Slot de salvamento</label>
                     <select id="saveSlot" class="select-field w-full p-2 rounded-lg text-xs" title="Selecionar slot de salvamento" aria-label="Selecionar slot de salvamento">
@@ -324,6 +325,16 @@
             </div>
             <video id="previewVideo" class="preview-video" controls autoplay loop playsinline></video>
             <div class="preview-actions">
+                <button id="previewShare" class="btn-control py-2 px-4 rounded-xl border-themed hover-accent-border hover-accent-text flex items-center gap-2 hidden">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="18" cy="5" r="3"></circle>
+                        <circle cx="6" cy="12" r="3"></circle>
+                        <circle cx="18" cy="19" r="3"></circle>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                    </svg>
+                    Compartilhar
+                </button>
                 <button id="previewDownload" class="btn-control bg-accent py-2 px-4 rounded-xl font-medium flex items-center gap-2">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -344,6 +355,20 @@
     <script src="scripts/exporter.js" defer></script>
     <script src="scripts/events.js" defer></script>
     <script src="scripts/main.js" defer></script>
+
+    <script>
+        // Detect MediaRecorder support and warn the user if unavailable
+        (function() {
+            var supported = typeof MediaRecorder !== 'undefined' &&
+                (MediaRecorder.isTypeSupported('video/webm') || MediaRecorder.isTypeSupported('video/mp4'));
+            if (!supported) {
+                var btn = document.getElementById('exportBtn');
+                var warning = document.getElementById('mediaRecorderWarning');
+                if (btn) btn.disabled = true;
+                if (warning) warning.classList.remove('hidden');
+            }
+        })();
+    </script>
 
     <script>
         if ('serviceWorker' in navigator) {

@@ -1,6 +1,6 @@
 # TextFlow - Animador de Texto
 
-Aplicativo web para criar animações de texto em canvas, com pré-visualização em tempo real e exportação de vídeo no navegador. Funciona como PWA instalável (Android e iOS).
+Aplicativo web para criar animações de texto em canvas, com pré-visualização em tempo real e exportação de vídeo no navegador. Funciona como PWA instalável (Android).
 
 ## Visão Geral
 
@@ -17,6 +17,7 @@ O TextFlow permite:
 - Salvar projetos em até **5 slots independentes** via `localStorage`
 - Desfazer e refazer alterações (undo/redo, até 50 estados)
 - Exportar o resultado como vídeo com **pré-visualização antes de baixar**
+- **Compartilhar o vídeo exportado** diretamente via menu nativo do Android (WhatsApp, Instagram, Drive…)
 - Usar offline como PWA instalado (Service Worker com cache completo)
 
 ## Tecnologias
@@ -32,8 +33,8 @@ O TextFlow permite:
 
 ```
 index.html            # Página principal
-manifest.json         # Manifesto PWA
-service-worker.js     # Cache offline (textflow-v3)
+manifest.json         # Manifesto PWA (ícones separados any/maskable, shortcuts)
+service-worker.js     # Cache offline (textflow-v6)
 styles/
   utils.css           # Utilitários CSS locais (substituto do Tailwind CDN)
   main.css            # Estilos globais e componentes visuais
@@ -41,7 +42,7 @@ scripts/
   state.js            # Estado global, formatos, easing, undo/redo, resetAnimation
   render.js           # Renderização do texto e efeitos no canvas (timeline por layer)
   events.js           # Binding de eventos e atalhos de teclado
-  exporter.js         # Fluxo de exportação + modal de preview
+  exporter.js         # Fluxo de exportação + modal de preview + Web Share API
   main.js             # Bootstrap, loop de animação e orquestração
 icons/
   icon-192.png        # Ícone PWA
@@ -110,8 +111,11 @@ t_layer = clamp((globalTime - layer.startDelay) / animDuration, 0, 1)
 
 1. Clique **"Exportar Vídeo"** → gravação inicia com barra de progresso
 2. Após a gravação, o **modal de preview** abre com o vídeo reproduzindo
-3. Clique **"Baixar"** para confirmar e salvar o arquivo
-4. Clique **"Descartar"** para cancelar (o blob é revogado da memória)
+3. Clique **"Compartilhar"** para abrir o menu nativo do Android (WhatsApp, Instagram, Drive…) — o botão só aparece se o navegador suportar compartilhamento de arquivos
+4. Clique **"Baixar"** para salvar o arquivo localmente
+5. Clique **"Descartar"** para cancelar (o blob é liberado da memória após 30s)
+
+> Se o navegador não suportar `MediaRecorder`, o botão "Exportar Vídeo" é desabilitado automaticamente com um aviso explicativo.
 
 Fallback automático de MIME: `video/webm;codecs=vp9` → `video/webm` → `video/mp4`
 
@@ -137,11 +141,16 @@ Chaves no `localStorage`: `textflow_project_slot1` a `textflow_project_slot5`.
 
 ## PWA / Offline
 
-- Service Worker `textflow-v5` cacheia o app shell e assets estáticos na primeira abertura online.
+- Service Worker `textflow-v6` cacheia o app shell e assets estáticos na primeira abertura online.
 - Após a primeira visita, o app funciona completamente offline.
-- Instalável em Android (Chrome) e iOS (Safari → "Adicionar à Tela de Início").
+- Instalável em Android via Chrome ("Adicionar à tela inicial" ou prompt automático).
+- Ícones com entradas separadas `"purpose": "any"` e `"purpose": "maskable"` — exibidos corretamente em launchers adaptivos do Android.
+- Shortcut registrado no manifesto: long-press no ícone exibe o atalho "Novo Projeto".
 - Orientação: suporta retrato e paisagem.
-- O app mostra um aviso visual quando uma nova versão do Service Worker fica pronta para ativação.
+- O app exibe um banner quando uma nova versão do Service Worker está pronta para ativação.
+- **Loop de animação pausado** quando a aba vai para segundo plano (`visibilitychange`) — economiza bateria.
+- **Swipe da borda esquerda** (≤30px) para a direita abre o menu lateral, como apps nativos Android.
+- **`touch-action: manipulation`** em todos os botões elimina o delay de 300ms ao tocar.
 
 ### Atualização de versão do PWA
 
@@ -153,15 +162,17 @@ Chaves no `localStorage`: `textflow_project_slot1` a `textflow_project_slot5`.
 
 | Navegador | Suporte |
 |---|---|
-| Chrome / Edge (desktop e Android) | ✅ Completo |
-| Safari (iOS) | ✅ Completo (PWA, canvas, vídeo) |
-| Firefox | ⚠️ Canvas OK; exportação `.webm`; `playsinline` ignorado |
+| Chrome / Edge Android | ✅ Completo (PWA, canvas, exportação, compartilhamento) |
+| Chrome / Edge desktop | ✅ Completo |
+| Firefox | ⚠️ Canvas OK; exportação `.webm`; compartilhamento não suportado |
+| Safari / iOS | ⚠️ Canvas OK; exportação de vídeo não suportada (`MediaRecorder`) |
 
 ## Limitações Conhecidas
 
 - Todas as camadas compartilham a mesma `speed` global — velocidades individuais por layer não estão implementadas.
 - Tailwind CDN foi removido; os estilos utilitários locais (`utils.css`) cobrem todas as classes usadas, mas não suportam JIT dinâmico.
 - O modal de preview usa o mesmo blob que a exportação — em dispositivos com pouca memória, vídeos longos podem ser lentos para carregar.
+- Fundos importados (imagem ou vídeo) não são salvos nos slots — são blob URLs temporários criados no momento do import.
 
 ## Licença
 

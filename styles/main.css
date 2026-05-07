@@ -123,6 +123,11 @@ body {
     }
 }
 
+/* Eliminate 300ms tap delay on all interactive elements */
+button, [role="button"], input[type="range"], select, label {
+    touch-action: manipulation;
+}
+
 input[type="range"] {
     -webkit-appearance: none;
     appearance: none;

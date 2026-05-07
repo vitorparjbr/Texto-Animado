@@ -27,10 +27,12 @@
         document.getElementById('undoBtn').addEventListener('click', undo);
         document.getElementById('redoBtn').addEventListener('click', redo);
 
+        var textInputTimer;
         document.getElementById('textInput').addEventListener('input', function(e) {
-            saveUndoState();
             getActiveLayer().text = e.target.value || '';
             syncUIFromState();
+            clearTimeout(textInputTimer);
+            textInputTimer = setTimeout(saveUndoState, 600);
         });
 
         document.getElementById('speedControl').addEventListener('input', function(e) {

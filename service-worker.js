@@ -1,4 +1,4 @@
-const CACHE_NAME = 'textflow-v5';
+const CACHE_NAME = 'textflow-v6';
 const APP_SHELL_URL = './index.html';
 const ASSETS_TO_CACHE = [
     './',
@@ -16,7 +16,6 @@ const ASSETS_TO_CACHE = [
 ];
 
 const EXTERNAL_CACHE = [
-    'https://cdn.tailwindcss.com',
     'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700;900&family=Roboto+Mono:wght@400;700&family=Bebas+Neue&family=Pacifico&family=Oswald:wght@400;700&display=swap'
 ];
 
