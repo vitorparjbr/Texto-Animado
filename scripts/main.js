@@ -8,6 +8,7 @@
     const ctx = canvas.getContext('2d');
     const videoBg = document.getElementById('videoBg');
     const imageBg = document.getElementById('imageBg');
+    const audioTrack = document.getElementById('audioTrack');
     const toastEl = document.getElementById('toast');
 
     let toastTimeout;
@@ -27,6 +28,62 @@
 
     function resetAnimation() {
         stateReset();
+        if (state.mediaType === 'video') {
+            videoBg.currentTime = 0;
+        }
+        syncPreviewAudio(true);
+    }
+
+    function formatSeconds(seconds) {
+        return (Math.round(seconds * 10) / 10).toFixed(1) + 's';
+    }
+
+    function getAudioTrimStart() {
+        return Math.max(0, Math.min(state.audioTrimStart || 0, state.audioDuration || 0));
+    }
+
+    function getAudioTrimEnd() {
+        const duration = state.audioDuration || 0;
+        if (!duration) return 0;
+        const rawEnd = state.audioTrimEnd || duration;
+        return Math.max(getAudioTrimStart(), Math.min(rawEnd, duration));
+    }
+
+    function applyAudioVolume() {
+        audioTrack.volume = Math.max(0, Math.min(state.audioVolume || 0, 1));
+    }
+
+    function syncPreviewAudio(forceSeek) {
+        if (!state.audioSource || !state.audioDuration || audioTrack.readyState < 1) {
+            return;
+        }
+
+        const trimStart = getAudioTrimStart();
+        const trimEnd = getAudioTrimEnd();
+        const targetTime = Math.min(trimEnd, trimStart + state.globalTime);
+
+        applyAudioVolume();
+
+        if (
+            forceSeek ||
+            audioTrack.currentTime < trimStart ||
+            audioTrack.currentTime > trimEnd ||
+            Math.abs(audioTrack.currentTime - targetTime) > 0.25
+        ) {
+            try {
+                audioTrack.currentTime = targetTime;
+            } catch (error) {
+                // Ignore transient seek failures while metadata is loading.
+            }
+        }
+
+        if (state.isPlaying && targetTime < trimEnd - 0.05) {
+            if (audioTrack.paused) {
+                audioTrack.play().catch(function() {});
+            }
+        } else if (!audioTrack.paused) {
+            audioTrack.pause();
+        }
     }
 
     function handleResize() {
@@ -65,6 +122,7 @@
             if (state.isPlaying) videoBg.play();
             else videoBg.pause();
         }
+        syncPreviewAudio(true);
     }
 
     function escapeHtml(str) {
@@ -182,6 +240,24 @@
         document.getElementById('bgColorBtn').classList.toggle('active', !state.bgTransparent);
         document.getElementById('bgColorPicker').style.display = state.bgTransparent ? 'none' : 'block';
 
+        var hasAudio = !!state.audioSource;
+        var audioControls = document.getElementById('audioControls');
+        var audioSummary = document.getElementById('audioSummary');
+        audioControls.style.display = hasAudio ? 'block' : 'none';
+        if (hasAudio) {
+            var trimStart = getAudioTrimStart();
+            var trimEnd = getAudioTrimEnd();
+            audioSummary.textContent = state.audioFileName + ' • ' + formatSeconds(state.audioDuration) + ' • trecho ' + formatSeconds(trimStart) + ' - ' + formatSeconds(trimEnd);
+            document.getElementById('audioVolume').value = state.audioVolume;
+            document.getElementById('audioVolumeValue').textContent = Math.round(state.audioVolume * 100) + '%';
+            document.getElementById('audioTrimStart').value = trimStart.toFixed(1);
+            document.getElementById('audioTrimEnd').value = trimEnd.toFixed(1);
+            document.getElementById('audioFadeIn').value = (state.audioFadeIn || 0).toFixed(1);
+            document.getElementById('audioFadeOut').value = (state.audioFadeOut || 0).toFixed(1);
+        } else {
+            audioSummary.textContent = 'Nenhum áudio importado.';
+        }
+
         // Delay slider
         var delayEl = document.getElementById('layerDelay');
         var delayValEl = document.getElementById('layerDelayValue');
@@ -246,10 +322,11 @@
         return exportVideo({
             canvas,
             state,
-            getActiveLayer,
             getTotalTextHeight: function() {
                 return getTotalTextHeight(ctx, canvas, state.layers);
             },
+            getAudioTrimStart,
+            getAudioTrimEnd,
             updatePlayPauseUI,
             resetAnimation,
             showToast
@@ -266,6 +343,10 @@
             state.globalTime += delta;
         }
 
+        if (state.audioSource) {
+            syncPreviewAudio(false);
+        }
+
         render(ctx, canvas, state, videoBg, imageBg, easings);
         state.animationId = requestAnimationFrame(animate);
     }
@@ -274,12 +355,14 @@
         state,
         videoBg,
         imageBg,
+        audioTrack,
         getActiveLayer,
         createDefaultLayer,
         saveUndoState,
         undo: runUndo,
         redo: runRedo,
         syncUIFromState,
+        syncPreviewAudio,
         resetAnimation,
         initCanvas,
         togglePlayPause,
@@ -299,11 +382,15 @@
                 cancelAnimationFrame(state.animationId);
                 state.animationId = null;
             }
+            if (!audioTrack.paused) {
+                audioTrack.pause();
+            }
         } else {
             if (!state.animationId) {
                 state.lastTime = 0;
                 state.animationId = requestAnimationFrame(animate);
             }
+            syncPreviewAudio(true);
         }
     });
 

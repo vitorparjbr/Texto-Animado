@@ -4,12 +4,14 @@
             state,
             videoBg,
             imageBg,
+            audioTrack,
             getActiveLayer,
             createDefaultLayer,
             saveUndoState,
             undo,
             redo,
             syncUIFromState,
+            syncPreviewAudio,
             resetAnimation,
             initCanvas,
             togglePlayPause,
@@ -19,6 +21,40 @@
             showToast,
             runExport
         } = deps;
+
+        function clearAudioState() {
+            if (state.audioSource) URL.revokeObjectURL(state.audioSource);
+            state.audioSource = null;
+            state.audioFileName = '';
+            state.audioDuration = 0;
+            state.audioTrimStart = 0;
+            state.audioTrimEnd = 0;
+            state.audioFadeIn = 0;
+            state.audioFadeOut = 0;
+            state.audioVolume = 1;
+            state.audioBuffer = null;
+            audioTrack.pause();
+            audioTrack.removeAttribute('src');
+            audioTrack.load();
+            document.getElementById('audioInput').value = '';
+        }
+
+        function clampAudioValue(value, fallback) {
+            var parsed = parseFloat(value);
+            if (!Number.isFinite(parsed)) return fallback;
+            return Math.max(0, parsed);
+        }
+
+        function normalizeAudioSettings() {
+            if (!state.audioDuration) return;
+            state.audioTrimStart = Math.min(clampAudioValue(state.audioTrimStart, 0), state.audioDuration);
+            state.audioTrimEnd = Math.min(clampAudioValue(state.audioTrimEnd, state.audioDuration), state.audioDuration);
+            state.audioTrimEnd = Math.max(state.audioTrimStart, state.audioTrimEnd || state.audioDuration);
+            var clipDuration = Math.max(0, state.audioTrimEnd - state.audioTrimStart);
+            state.audioFadeIn = Math.min(clampAudioValue(state.audioFadeIn, 0), clipDuration);
+            state.audioFadeOut = Math.min(clampAudioValue(state.audioFadeOut, 0), clipDuration);
+            state.audioVolume = Math.max(0, Math.min(parseFloat(state.audioVolume) || 0, 1));
+        }
 
         document.getElementById('menuToggle').addEventListener('click', openMenu);
         document.getElementById('closeMenu').addEventListener('click', closeMenu);
@@ -223,6 +259,117 @@
             document.getElementById('mediaInput').value = '';
         });
 
+        document.getElementById('audioInput').addEventListener('change', function(e) {
+            var file = e.target.files[0];
+            var AudioContextCtor;
+            if (!file) return;
+
+            clearAudioState();
+
+            state.audioSource = URL.createObjectURL(file);
+            state.audioFileName = file.name;
+            audioTrack.src = state.audioSource;
+            audioTrack.load();
+
+            AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextCtor) {
+                state.audioBuffer = null;
+                showToast('Preview de áudio pronto, mas a exportação com áudio pode não funcionar neste navegador.', 'info');
+                syncUIFromState();
+                return;
+            }
+
+            file.arrayBuffer().then(function(arrayBuffer) {
+                var decodeContext = new AudioContextCtor();
+                return decodeContext.decodeAudioData(arrayBuffer).then(function(buffer) {
+                    state.audioBuffer = buffer;
+                    if (typeof decodeContext.close === 'function') {
+                        return decodeContext.close().catch(function() {}).then(function() {
+                            return buffer;
+                        });
+                    }
+                    return buffer;
+                }, function(error) {
+                    if (typeof decodeContext.close === 'function') {
+                        decodeContext.close().catch(function() {});
+                    }
+                    throw error;
+                });
+            }).then(function(buffer) {
+                if (!state.audioDuration) {
+                    state.audioDuration = buffer.duration;
+                    state.audioTrimEnd = buffer.duration;
+                    normalizeAudioSettings();
+                    syncUIFromState();
+                }
+            }).catch(function() {
+                state.audioBuffer = null;
+                showToast('Nao foi possivel decodificar o audio para exportacao.', 'error');
+            });
+        });
+
+        audioTrack.addEventListener('loadedmetadata', function() {
+            if (!state.audioSource) return;
+            state.audioDuration = audioTrack.duration || state.audioDuration || 0;
+            if (!state.audioTrimEnd && state.audioDuration) {
+                state.audioTrimEnd = state.audioDuration;
+            }
+            normalizeAudioSettings();
+            syncUIFromState();
+            syncPreviewAudio(true);
+        });
+
+        audioTrack.addEventListener('timeupdate', function() {
+            if (!state.audioDuration) return;
+            normalizeAudioSettings();
+            if (audioTrack.currentTime >= state.audioTrimEnd - 0.02) {
+                audioTrack.pause();
+            }
+        });
+
+        document.getElementById('audioVolume').addEventListener('input', function(e) {
+            saveUndoState();
+            state.audioVolume = Math.max(0, Math.min(parseFloat(e.target.value) || 0, 1));
+            normalizeAudioSettings();
+            syncUIFromState();
+            syncPreviewAudio(false);
+        });
+
+        document.getElementById('audioTrimStart').addEventListener('change', function(e) {
+            saveUndoState();
+            state.audioTrimStart = clampAudioValue(e.target.value, 0);
+            normalizeAudioSettings();
+            resetAnimation();
+            syncUIFromState();
+        });
+
+        document.getElementById('audioTrimEnd').addEventListener('change', function(e) {
+            saveUndoState();
+            state.audioTrimEnd = clampAudioValue(e.target.value, state.audioDuration || 0);
+            normalizeAudioSettings();
+            resetAnimation();
+            syncUIFromState();
+        });
+
+        document.getElementById('audioFadeIn').addEventListener('change', function(e) {
+            saveUndoState();
+            state.audioFadeIn = clampAudioValue(e.target.value, 0);
+            normalizeAudioSettings();
+            syncUIFromState();
+        });
+
+        document.getElementById('audioFadeOut').addEventListener('change', function(e) {
+            saveUndoState();
+            state.audioFadeOut = clampAudioValue(e.target.value, 0);
+            normalizeAudioSettings();
+            syncUIFromState();
+        });
+
+        document.getElementById('removeAudio').addEventListener('click', function() {
+            clearAudioState();
+            syncUIFromState();
+        });
+
         document.getElementById('addLayerBtn').addEventListener('click', function() {
             saveUndoState();
             const newLayer = createDefaultLayer(state.nextLayerId++);
@@ -264,9 +411,9 @@
                 var slotName = slotEl ? 'Slot ' + slotEl.value : '';
                 showToast('Projeto salvo! (' + slotName + ')', 'success');
                 // Warn if media background exists — it is not serializable
-                if (state.mediaType) {
+                if (state.mediaType || state.audioSource) {
                     setTimeout(function() {
-                        showToast('Atenção: o fundo importado não é salvo', 'info');
+                        showToast('Atenção: fundos e audio importados nao sao salvos', 'info');
                     }, 2600);
                 }
             } catch (e) {
@@ -295,6 +442,7 @@
                 imageBg.removeAttribute('src');
                 document.getElementById('removeMedia').style.display = 'none';
                 document.getElementById('mediaInput').value = '';
+                clearAudioState();
                 state.layers = data.layers || state.layers;
                 state.activeLayerId = data.activeLayerId || state.layers[0].id;
                 state.nextLayerId = data.nextLayerId || state.layers.length + 1;
@@ -303,6 +451,11 @@
                 state.resolution = data.resolution || 720;
                 state.bgTransparent = data.bgTransparent !== undefined ? data.bgTransparent : true;
                 state.bgColor = data.bgColor || '#0a0a0f';
+                state.audioTrimStart = 0;
+                state.audioTrimEnd = 0;
+                state.audioFadeIn = 0;
+                state.audioFadeOut = 0;
+                state.audioVolume = 1;
 
                 initCanvas();
                 syncUIFromState();

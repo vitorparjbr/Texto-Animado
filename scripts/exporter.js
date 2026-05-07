@@ -1,9 +1,116 @@
 (() => {
+    function getSupportedMimeType(hasAudio) {
+        const candidates = hasAudio
+            ? [
+                'video/mp4',
+                'video/webm;codecs=vp8,opus',
+                'video/webm;codecs=vp9,opus',
+                'video/webm;codecs=vp8',
+                'video/webm'
+            ]
+            : [
+                'video/webm;codecs=vp9',
+                'video/webm;codecs=vp8',
+                'video/webm',
+                'video/mp4'
+            ];
+
+        for (let i = 0; i < candidates.length; i++) {
+            if (MediaRecorder.isTypeSupported(candidates[i])) {
+                return candidates[i];
+            }
+        }
+
+        return '';
+    }
+
+    function getVisualDurationMs(canvas, state, getTotalTextHeight) {
+        return state.layers.reduce(function(maxDuration, layer) {
+            const anim = layer.animationType;
+            const isScroll = anim === 'scrollUp' || anim === 'scrollDown';
+            const startDelayMs = (layer.startDelay || 0) * 1000;
+            let layerDurationMs;
+
+            if (isScroll) {
+                const textHeight = getTotalTextHeight();
+                const totalDistance = canvas.height + textHeight + 100;
+                const pixelsPerSecond = state.speed * 60;
+                layerDurationMs = (totalDistance / pixelsPerSecond) * 1000;
+            } else {
+                layerDurationMs = Math.max(500, (5 / state.speed) * 1000);
+            }
+
+            return Math.max(maxDuration, startDelayMs + layerDurationMs);
+        }, 500);
+    }
+
+    async function createAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd) {
+        const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContextCtor) {
+            throw new Error('Seu navegador nao suporta mixagem de audio na exportacao.');
+        }
+        if (!state.audioBuffer) {
+            throw new Error('Aguarde o audio terminar de carregar antes de exportar.');
+        }
+
+        const trimStart = getAudioTrimStart();
+        const trimEnd = getAudioTrimEnd();
+        const clipDuration = Math.max(0, trimEnd - trimStart);
+        if (!clipDuration) {
+            return null;
+        }
+
+        const audioContext = new AudioContextCtor();
+        const destination = audioContext.createMediaStreamDestination();
+        const source = audioContext.createBufferSource();
+        const gainNode = audioContext.createGain();
+        const volume = Math.max(0, Math.min(state.audioVolume || 0, 1));
+        const fadeIn = Math.min(Math.max(0, state.audioFadeIn || 0), clipDuration);
+        const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), clipDuration);
+        const startAt = audioContext.currentTime + 0.05;
+        const stopAt = startAt + clipDuration;
+
+        source.buffer = state.audioBuffer;
+        source.connect(gainNode);
+        gainNode.connect(destination);
+
+        gainNode.gain.setValueAtTime(fadeIn > 0 ? 0 : volume, startAt);
+        if (fadeIn > 0) {
+            gainNode.gain.linearRampToValueAtTime(volume, startAt + fadeIn);
+        }
+        if (fadeOut > 0) {
+            const fadeOutStart = Math.max(startAt, stopAt - fadeOut);
+            gainNode.gain.setValueAtTime(volume, fadeOutStart);
+            gainNode.gain.linearRampToValueAtTime(0.0001, stopAt);
+        }
+
+        await audioContext.resume();
+        source.start(startAt, trimStart, clipDuration);
+        source.stop(stopAt + 0.02);
+
+        return {
+            stream: destination.stream,
+            cleanup: function() {
+                try {
+                    source.disconnect();
+                    gainNode.disconnect();
+                } catch (error) {
+                    // Ignore cleanup disconnect failures.
+                }
+                if (typeof audioContext.close === 'function') {
+                    audioContext.close().catch(function() {});
+                }
+            }
+        };
+    }
+
     async function exportVideo(deps) {
         const {
             canvas,
             state,
             getTotalTextHeight,
+            getAudioTrimStart,
+            getAudioTrimEnd,
             updatePlayPauseUI,
             resetAnimation,
             showToast
@@ -23,19 +130,31 @@
         recordingBadge.style.display = 'inline-block';
 
         try {
-            let mimeType = 'video/webm;codecs=vp9';
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'video/webm';
-                if (!MediaRecorder.isTypeSupported(mimeType)) {
-                    mimeType = 'video/mp4';
-                    if (!MediaRecorder.isTypeSupported(mimeType)) {
-                        throw new Error('Seu navegador não suporta gravação de vídeo.');
-                    }
+            let mimeType = getSupportedMimeType(!!state.audioSource);
+            if (!mimeType) {
+                mimeType = getSupportedMimeType(false);
+                if (!mimeType) {
+                    throw new Error('Seu navegador não suporta gravação de vídeo.');
                 }
             }
 
             const ext = mimeType.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
-            const stream = canvas.captureStream(30);
+            const canvasStream = canvas.captureStream(30);
+            const visualDuration = getVisualDurationMs(canvas, state, getTotalTextHeight);
+            const audioDuration = state.audioSource ? Math.max(0, (getAudioTrimEnd() - getAudioTrimStart()) * 1000) : 0;
+            const duration = Math.max(visualDuration, audioDuration, 500);
+            let audioExport = null;
+            let streamTracks = canvasStream.getVideoTracks().slice();
+
+            if (state.audioSource) {
+                audioExport = await createAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd);
+                if (audioExport && audioExport.stream) {
+                    streamTracks = streamTracks.concat(audioExport.stream.getAudioTracks());
+                }
+            }
+
+            const stream = new MediaStream(streamTracks);
+
             const mediaRecorder = new MediaRecorder(stream, {
                 mimeType,
                 videoBitsPerSecond: 5000000
@@ -45,24 +164,6 @@
             mediaRecorder.ondataavailable = function(e) {
                 if (e.data && e.data.size > 0) chunks.push(e.data);
             };
-
-            const duration = state.layers.reduce(function(maxDuration, layer) {
-                const anim = layer.animationType;
-                const isScroll = anim === 'scrollUp' || anim === 'scrollDown';
-                const startDelayMs = (layer.startDelay || 0) * 1000;
-                let layerDurationMs;
-
-                if (isScroll) {
-                    const textHeight = getTotalTextHeight();
-                    const totalDistance = canvas.height + textHeight + 100;
-                    const pixelsPerSecond = state.speed * 60;
-                    layerDurationMs = (totalDistance / pixelsPerSecond) * 1000;
-                } else {
-                    layerDurationMs = Math.max(500, (5 / state.speed) * 1000);
-                }
-
-                return Math.max(maxDuration, startDelayMs + layerDurationMs);
-            }, 500);
 
             const startGlobalTime = state.globalTime;
             const wasPlaying = state.isPlaying;
@@ -155,6 +256,10 @@
                 closePreview();
                 showToast('Gravação descartada', 'info');
             };
+
+            if (audioExport) {
+                audioExport.cleanup();
+            }
         } catch (error) {
             console.error('Export error:', error);
             statusEl.textContent = error.message || 'Erro na exportação. Tente novamente.';

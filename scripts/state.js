@@ -52,6 +52,15 @@
         bgColor: '#0a0a0f',
         mediaType: null,
         mediaSource: null,
+        audioSource: null,
+        audioFileName: '',
+        audioDuration: 0,
+        audioTrimStart: 0,
+        audioTrimEnd: 0,
+        audioFadeIn: 0,
+        audioFadeOut: 0,
+        audioVolume: 1,
+        audioBuffer: null,
         isPlaying: true,
         globalTime: 0,
         lastTime: 0,
@@ -90,7 +99,12 @@
             format: state.format,
             resolution: state.resolution,
             bgTransparent: state.bgTransparent,
-            bgColor: state.bgColor
+            bgColor: state.bgColor,
+            audioTrimStart: state.audioTrimStart,
+            audioTrimEnd: state.audioTrimEnd,
+            audioFadeIn: state.audioFadeIn,
+            audioFadeOut: state.audioFadeOut,
+            audioVolume: state.audioVolume
         });
     }
 

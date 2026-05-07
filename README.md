@@ -14,6 +14,7 @@ O TextFlow permite:
 - Gerenciar múltiplas camadas de texto independentes
 - Definir formato do canvas (9:16, 1:1, 16:9) e resolução (480p, 720p, 1080p)
 - Usar fundo transparente, cor sólida, imagem ou vídeo importado
+- Importar uma trilha de áudio com volume, corte, fade in e fade out
 - Salvar projetos em até **5 slots independentes** via `localStorage`
 - Desfazer e refazer alterações (undo/redo, até 50 estados)
 - Exportar o resultado como vídeo com **pré-visualização antes de baixar**
@@ -34,15 +35,15 @@ O TextFlow permite:
 ```text
 index.html            # Página principal
 manifest.json         # Manifesto PWA (ícones separados any/maskable, shortcuts)
-service-worker.js     # Cache offline (textflow-v6)
+service-worker.js     # Cache offline (textflow-v9)
 styles/
   utils.css           # Utilitários CSS locais (substituto do Tailwind CDN)
   main.css            # Estilos globais e componentes visuais
 scripts/
-  state.js            # Estado global, formatos, easing, undo/redo, resetAnimation
+  state.js            # Estado global, formatos, easing, undo/redo, resetAnimation, áudio
   render.js           # Renderização do texto e efeitos no canvas (timeline por layer)
   events.js           # Binding de eventos e atalhos de teclado
-  exporter.js         # Fluxo de exportação + modal de preview + Web Share API
+  exporter.js         # Fluxo de exportação + mixagem simples de áudio + preview + Web Share API
   main.js             # Bootstrap, loop de animação e orquestração
 icons/
   icon-192.png        # Ícone PWA
@@ -61,10 +62,10 @@ icons/
 
 ## Fluxo da Aplicação
 
-1. `state.js` — Expõe `window.TextFlowState` com estado, formatos, undo/redo e `resetAnimation`.
+1. `state.js` — Expõe `window.TextFlowState` com estado, formatos, áudio, undo/redo e `resetAnimation`.
 2. `render.js` — Expõe `window.TextFlowRender`; cada layer calcula seu próprio `t` a partir de `state.globalTime - layer.startDelay`.
 3. `events.js` — Expõe `window.TextFlowEvents`, conecta UI ao estado.
-4. `exporter.js` — Expõe `window.TextFlowExporter`; grava via `MediaRecorder` e exibe modal de preview.
+4. `exporter.js` — Expõe `window.TextFlowExporter`; grava via `MediaRecorder`, mistura a trilha de áudio quando disponível e exibe modal de preview.
 5. `main.js` — Inicializa o app, incrementa `state.globalTime` no loop, sincroniza UI.
 
 ## Interface do Menu Lateral
@@ -83,6 +84,7 @@ icons/
 | **Formato** | 9:16, 1:1, 16:9 |
 | **Resolução** | 480p, 720p, 1080p |
 | **Fundo** | Transparente, cor sólida, imagem ou vídeo |
+| **Áudio** | Importar trilha, ajustar volume, início, fim, fade in e fade out |
 | **Camadas** | Adicionar, duplicar, remover, alternar |
 | **Slot** | Seletor de 1 a 5 para salvamento independente |
 | **Salvar / Carregar / Limpar** | Opera no slot selecionado |
@@ -116,9 +118,11 @@ t_layer = clamp((globalTime - layer.startDelay) / animDuration, 0, 1)
 4. Clique **"Baixar"** para salvar o arquivo localmente
 5. Clique **"Descartar"** para cancelar (o blob é liberado da memória após 30s)
 
+Se houver uma trilha de áudio importada, a exportação incorpora o trecho configurado com volume, fade in e fade out.
+
 > Se o navegador não suportar `MediaRecorder`, o botão "Exportar Vídeo" é desabilitado automaticamente com um aviso explicativo.
 
-Fallback automático de MIME: `video/webm;codecs=vp9` → `video/webm` → `video/mp4`
+Fallback automático de MIME: `video/mp4` → `video/webm;codecs=vp8,opus` → `video/webm`
 
 ## Atalhos de Teclado
 
@@ -138,11 +142,11 @@ Fallback automático de MIME: `video/webm;codecs=vp9` → `video/webm` → `vide
 
 Chaves no `localStorage`: `textflow_project_slot1` a `textflow_project_slot5`.
 
-> **Atenção:** fundos importados (imagem ou vídeo) **não são salvos** — são blob URLs temporários. Ao carregar um projeto salvo, reimporte o fundo manualmente. Um aviso é exibido automaticamente ao salvar quando há fundo ativo.
+> **Atenção:** fundos e áudios importados **não são salvos** — são URLs temporárias. Ao carregar um projeto salvo, reimporte os arquivos manualmente. Um aviso é exibido automaticamente ao salvar quando há mídia importada.
 
 ## PWA / Offline
 
-- Service Worker `textflow-v6` cacheia o app shell e assets estáticos na primeira abertura online.
+- Service Worker `textflow-v9` cacheia o app shell e assets estáticos na primeira abertura online.
 - Após a primeira visita, o app funciona completamente offline.
 - Instalável em Android via Chrome ("Adicionar à tela inicial" ou prompt automático).
 - Ícones com entradas separadas `"purpose": "any"` e `"purpose": "maskable"` — exibidos corretamente em launchers adaptivos do Android.
@@ -174,6 +178,7 @@ Chaves no `localStorage`: `textflow_project_slot1` a `textflow_project_slot5`.
 - Tailwind CDN foi removido; os estilos utilitários locais (`utils.css`) cobrem todas as classes usadas, mas não suportam JIT dinâmico.
 - O modal de preview usa o mesmo blob que a exportação — em dispositivos com pouca memória, vídeos longos podem ser lentos para carregar.
 - Fundos importados (imagem ou vídeo) não são salvos nos slots — são blob URLs temporários criados no momento do import.
+- O áudio é limitado a uma única trilha por projeto; mixagem de múltiplas faixas não está implementada.
 
 ## Licença
 
