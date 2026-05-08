@@ -42,6 +42,9 @@
             <div class="p-4 border-b border-themed flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Configurações</h2>
                 <div class="flex items-center gap-1">
+                    <button id="peekBtn" class="p-2 hover-card-bg rounded-lg transition-colors md:hidden" aria-label="Espiar Canvas" title="Espiar Canvas (Segure)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
                     <button id="undoBtn" class="p-2 hover-card-bg rounded-lg transition-colors" aria-label="Desfazer" title="Desfazer (Ctrl+Z)">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10h10a5 5 0 0 1 0 10H9"/><polyline points="3,10 7,6"/><polyline points="3,10 7,14"/></svg>
                     </button>
@@ -404,6 +407,7 @@
         </div>
     </div>
 
+    <script src="https://unpkg.com/mp4-muxer/build/mp4-muxer.js" defer></script>
     <script src="scripts/state.js" defer></script>
     <script src="scripts/render.js" defer></script>
     <script src="scripts/exporter.js" defer></script>

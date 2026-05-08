@@ -35,6 +35,7 @@
 
         function clearAudioState() {
             if (state.audioSource) URL.revokeObjectURL(state.audioSource);
+            state.audioFile = null;
             state.audioSource = null;
             state.audioFileName = '';
             state.audioDuration = 0;
@@ -85,6 +86,29 @@
         document.getElementById('menuToggle').addEventListener('click', openMenu);
         document.getElementById('closeMenu').addEventListener('click', closeMenu);
         document.getElementById('menuOverlay').addEventListener('click', closeMenu);
+
+        var peekBtn = document.getElementById('peekBtn');
+        var sideMenu = document.getElementById('sideMenu');
+        if (peekBtn) {
+            function startPeek(e) {
+                e.preventDefault();
+                sideMenu.style.opacity = '0';
+                sideMenu.style.pointerEvents = 'none';
+            }
+            function stopPeek(e) {
+                e.preventDefault();
+                sideMenu.style.opacity = '1';
+                sideMenu.style.pointerEvents = '';
+            }
+            peekBtn.addEventListener('mousedown', startPeek);
+            peekBtn.addEventListener('touchstart', startPeek);
+            document.addEventListener('mouseup', function(e) {
+                if (sideMenu.style.opacity === '0') stopPeek(e);
+            });
+            document.addEventListener('touchend', function(e) {
+                if (sideMenu.style.opacity === '0') stopPeek(e);
+            });
+        }
 
         document.getElementById('undoBtn').addEventListener('click', undo);
         document.getElementById('redoBtn').addEventListener('click', redo);
@@ -262,6 +286,7 @@
             const url = URL.createObjectURL(file);
 
             if (file.type.startsWith('video/')) {
+                state.mediaFile = file;
                 state.mediaType = 'video';
                 state.mediaSource = url;
                 state.mediaFileName = file.name;
@@ -271,6 +296,7 @@
                 }
                 videoBg.play().catch(function() {});
             } else if (file.type.startsWith('image/')) {
+                state.mediaFile = file;
                 state.mediaType = 'image';
                 state.mediaSource = url;
                 state.mediaFileName = file.name;
@@ -287,6 +313,7 @@
         document.getElementById('removeMedia').addEventListener('click', function() {
             if (state.mediaSource) URL.revokeObjectURL(state.mediaSource);
             state.mediaType = null;
+            state.mediaFile = null;
             state.mediaSource = null;
             state.mediaFileName = '';
             videoBg.src = '';
@@ -306,6 +333,7 @@
 
             clearAudioState();
 
+            state.audioFile = file;
             state.audioSource = URL.createObjectURL(file);
             state.audioFileName = file.name;
             state.audioSourceMode = 'imported';
