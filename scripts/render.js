@@ -279,12 +279,37 @@
         ctx.restore();
     }
 
+    // Cache do último frame de vídeo válido para evitar flickering quando readyState cai
+    // temporariamente durante buffering/seek no mobile.
+    var _lastVideoFrame = null;
+    var _lastVideoFrameCtx = null;
+    var _lastVideoFrameSrc = '';
+
     function render(ctx, canvas, state, videoBg, imageBg, easings) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         try {
-            if (state.mediaType === 'video' && videoBg.src && videoBg.readyState >= 2) {
-                ctx.drawImage(videoBg, 0, 0, canvas.width, canvas.height);
+            if (state.mediaType === 'video' && videoBg.src) {
+                if (videoBg.readyState >= 2) {
+                    ctx.drawImage(videoBg, 0, 0, canvas.width, canvas.height);
+                    // Atualiza o cache do frame para usar como fallback quando readyState cair
+                    if (_lastVideoFrameSrc !== videoBg.src || !_lastVideoFrame ||
+                            _lastVideoFrame.width !== canvas.width || _lastVideoFrame.height !== canvas.height) {
+                        _lastVideoFrame = document.createElement('canvas');
+                        _lastVideoFrame.width = canvas.width;
+                        _lastVideoFrame.height = canvas.height;
+                        _lastVideoFrameCtx = _lastVideoFrame.getContext('2d');
+                        _lastVideoFrameSrc = videoBg.src;
+                    }
+                    _lastVideoFrameCtx.drawImage(videoBg, 0, 0, canvas.width, canvas.height);
+                } else if (_lastVideoFrame && _lastVideoFrameSrc === videoBg.src &&
+                           _lastVideoFrame.width === canvas.width && _lastVideoFrame.height === canvas.height) {
+                    // Usa o frame em cache enquanto o vídeo está bufferizando (evita flickering)
+                    ctx.drawImage(_lastVideoFrame, 0, 0, canvas.width, canvas.height);
+                } else if (!state.bgTransparent) {
+                    ctx.fillStyle = state.bgColor;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
             } else if (state.mediaType === 'image' && imageBg.src && imageBg.complete) {
                 ctx.drawImage(imageBg, 0, 0, canvas.width, canvas.height);
             } else if (!state.bgTransparent) {

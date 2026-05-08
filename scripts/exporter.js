@@ -170,9 +170,11 @@
             fastStart: 'in-memory'
         });
 
+        // IMPORTANTE: erros no callback NÃO são capturados pelo try/catch externo.
+        // Por isso capturamos em videoError e checamos no loop.
         const videoEncoder = new VideoEncoder({
             output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-            error: e => { console.error(e); throw new Error('VideoEncoder erro: ' + e.message); }
+            error: e => { console.error('VideoEncoder error:', e); videoError = e; }
         });
 
         videoEncoder.configure({
@@ -195,12 +197,23 @@
 
             if (state.mediaType === 'video' && videoBg.src) {
                 videoBg.currentTime = getAudioTrimStart() + state.globalTime;
-                if (videoBg.readyState < 2) {
-                    await new Promise(r => {
-                        const check = () => { if (videoBg.readyState >= 2) { videoBg.removeEventListener('seeked', check); r(); } };
-                        videoBg.addEventListener('seeked', check);
+                // Sempre aguarda o evento 'seeked' para garantir que o frame correto
+                // seja decodificado antes de renderizar. Sem isso, o canvas captura o
+                // frame anterior ao seek (race condition) gerando vídeo com frames errados.
+                await new Promise(function(seekResolve) {
+                    var done = false;
+                    var seekTimeout = setTimeout(function() {
+                        if (!done) { done = true; seekResolve(); }
+                    }, 500);
+                    videoBg.addEventListener('seeked', function onSeeked() {
+                        if (!done) {
+                            done = true;
+                            clearTimeout(seekTimeout);
+                            videoBg.removeEventListener('seeked', onSeeked);
+                            seekResolve();
+                        }
                     });
-                }
+                });
             }
 
             render(canvas.getContext('2d'), canvas, state, videoBg, imageBg, easings);
@@ -222,6 +235,8 @@
         }
 
         await videoEncoder.flush();
+        // Verifica se houve erro silencioso no VideoEncoder após o flush
+        if (videoError) throw videoError;
 
         if (activeAudioMode !== 'none') {
             statusEl.textContent = 'Processando Áudio...';
@@ -229,13 +244,15 @@
             try {
                 const audioBuffer = await renderOfflineAudioBuffer(state, getAudioTrimStart, getAudioTrimEnd, duration / 1000);
                 if (audioBuffer) {
+                    let audioEncodeError = null;
                     const audioEncoder = new AudioEncoder({
                         output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
-                        error: e => { console.error(e); throw new Error('AudioEncoder erro: ' + e.message); }
+                        error: e => { console.error('AudioEncoder error:', e); audioEncodeError = e; }
                     });
                     audioEncoder.configure({ codec: 'mp4a.40.2', numberOfChannels: 2, sampleRate: 44100, bitrate: 128000 });
                     progressBar.style.width = '90%';
                     await encodeAudioBuffer(audioBuffer, audioEncoder);
+                    if (audioEncodeError) throw audioEncodeError;
                 }
             } catch (err) {
                 console.error("Audio WebCodecs error:", err);
@@ -463,14 +480,29 @@
             const audioDuration = activeAudioMode !== 'none' ? Math.max(0, (getAudioTrimEnd() - getAudioTrimStart()) * 1000) : 0;
             const duration = Math.max(visualDuration, audioDuration, 500);
             
-            let blob;
+            let blob = null;
             let ext2;
 
+            // Tenta WebCodecs (MP4 nativo, melhor qualidade)
             if (typeof window.VideoEncoder !== 'undefined' && window.Mp4Muxer) {
-                console.log('Using WebCodecs for export');
-                ext2 = 'mp4';
-                blob = await exportVideoWebCodecs(deps, duration, activeAudioMode);
-            } else {
+                try {
+                    console.log('Using WebCodecs for export');
+                    ext2 = 'mp4';
+                    blob = await exportVideoWebCodecs(deps, duration, activeAudioMode);
+                } catch (webCodecsErr) {
+                    // No mobile, o VideoEncoder pode falhar por codec não suportado,
+                    // GPU ocupada, ou outros erros de hardware. Faz fallback para MediaRecorder.
+                    console.warn('WebCodecs export failed, falling back to MediaRecorder:', webCodecsErr);
+                    showToast('Usando método alternativo para exportar...', 'info');
+                    blob = null;
+                    // Reseta o estado de animação para o MediaRecorder começar do zero
+                    resetAnimation();
+                    state.isPlaying = false;
+                }
+            }
+
+            // Fallback: MediaRecorder (grava em tempo real)
+            if (!blob) {
                 console.log('Using MediaRecorder for export');
                 if (typeof MediaRecorder === 'undefined' || typeof canvas.captureStream !== 'function') {
                     throw new Error('Exportação de vídeo não suportada neste navegador.');

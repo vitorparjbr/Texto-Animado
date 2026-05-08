@@ -179,9 +179,10 @@
         }
 
         if (state.isPlaying && targetTime < trimEnd - 0.05) {
-            videoBg.play().catch(function() {});
+            // Só chama play() se o vídeo estiver pausado — evitar criar Promises a cada frame no mobile
+            if (videoBg.paused) videoBg.play().catch(function() {});
         } else {
-            videoBg.pause();
+            if (!videoBg.paused) videoBg.pause();
         }
     }
 
