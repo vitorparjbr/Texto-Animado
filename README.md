@@ -25,9 +25,9 @@ O TextFlow permite:
 ## Tecnologias
 
 - HTML5 / CSS3 / JavaScript puro (sem framework de build)
-- API Canvas 2D
-- MediaRecorder API (exportação de vídeo)
+- WebCodecs API (Mp4Muxer) e MediaRecorder API (exportação de vídeo)
 - Service Worker (cache offline / PWA)
+- Biblioteca externa `mp4-muxer` carregada via CDN para renderização de MP4 nativo
 - **Sem Tailwind CDN** — estilos utilitários locais em `styles/utils.css`
 - Google Fonts: Space Grotesk, Playfair Display, Roboto Mono, Bebas Neue, Pacifico, Oswald
 
@@ -36,7 +36,7 @@ O TextFlow permite:
 ```text
 index.html            # Página principal
 manifest.json         # Manifesto PWA (ícones separados any/maskable, shortcuts)
-service-worker.js     # Cache offline (textflow-v12)
+service-worker.js     # Cache offline (textflow-v16)
 styles/
   utils.css           # Utilitários CSS locais (substituto do Tailwind CDN)
   main.css            # Estilos globais e componentes visuais
@@ -123,7 +123,7 @@ Se houver uma trilha importada ou o áudio do vídeo de fundo estiver selecionad
 
 > Se o navegador não suportar `MediaRecorder`, o botão "Exportar Vídeo" é desabilitado automaticamente com um aviso explicativo.
 
-Fallback automático de MIME: `video/mp4` → `video/webm;codecs=vp8,opus` → `video/webm`
+O exportador tenta nativamente utilizar **WebCodecs** junto ao pacote **Mp4Muxer** para entregar uma excelente qualidade em formato `.mp4`. Caso o hardware ou o navegador mobile falhe ao codificar, ele faz fallback automático para `MediaRecorder` seguindo os MIME types: `video/mp4` → `video/webm;codecs=vp8,opus` → `video/webm`.
 
 ## Atalhos de Teclado
 
@@ -147,7 +147,7 @@ Chaves no `localStorage`: `textflow_project_slot1` a `textflow_project_slot5`.
 
 ## PWA / Offline
 
-- Service Worker `textflow-v12` cacheia o app shell e assets estáticos na primeira abertura online.
+- Service Worker `textflow-v16` cacheia o app shell e assets estáticos na primeira abertura online.
 - Após a primeira visita, o app funciona completamente offline.
 - Instalável em Android via Chrome ("Adicionar à tela inicial" ou prompt automático).
 - Ícones com entradas separadas `"purpose": "any"` e `"purpose": "maskable"` — exibidos corretamente em launchers adaptivos do Android.

@@ -316,6 +316,17 @@
                 ctx.fillStyle = state.bgColor;
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             }
+
+            // Libera memória do fallback caso não estejamos mais usando vídeo
+            if (state.mediaType !== 'video' || !videoBg.src) {
+                if (_lastVideoFrame) {
+                    _lastVideoFrame.width = 0;
+                    _lastVideoFrame.height = 0;
+                    _lastVideoFrame = null;
+                    _lastVideoFrameCtx = null;
+                    _lastVideoFrameSrc = '';
+                }
+            }
         } catch (e) {
             // ignore transient media decode errors while loading
         }
