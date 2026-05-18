@@ -83,6 +83,53 @@
             state.audioVolume = Math.max(0, Math.min(parseFloat(state.audioVolume) || 0, 1));
         }
 
+        function getTimelineTrack() {
+            return document.querySelector('#audioTimeline .audio-timeline-track');
+        }
+
+        function getAudioTrimHandleForTime(time) {
+            return Math.abs(time - state.audioTrimStart) <= Math.abs(time - state.audioTrimEnd) ? 'start' : 'end';
+        }
+
+        function getAudioTimelineTime(clientX) {
+            var track = getTimelineTrack();
+            var duration = getActiveAudioDuration();
+            var rect;
+            var ratio;
+            if (!track || !duration) return 0;
+            rect = track.getBoundingClientRect();
+            if (!rect.width) return 0;
+            ratio = (clientX - rect.left) / rect.width;
+            ratio = Math.max(0, Math.min(ratio, 1));
+            return ratio * duration;
+        }
+
+        function applyAudioTrimFromTimeline(handle, nextValue) {
+            if (!getActiveAudioDuration()) return;
+            if (handle === 'start') {
+                state.audioTrimStart = nextValue;
+            } else {
+                state.audioTrimEnd = nextValue;
+            }
+            normalizeAudioSettings();
+            resetAnimation();
+            syncUIFromState();
+        }
+
+        var activeAudioTrimHandle = null;
+
+        function beginAudioTrimDrag(handle, e) {
+            if (!getActiveAudioDuration()) return;
+            saveUndoState();
+            activeAudioTrimHandle = handle;
+            applyAudioTrimFromTimeline(handle, getAudioTimelineTime(e.clientX));
+            e.preventDefault();
+        }
+
+        function stopAudioTrimDrag() {
+            activeAudioTrimHandle = null;
+        }
+
         document.getElementById('menuToggle').addEventListener('click', openMenu);
         document.getElementById('closeMenu').addEventListener('click', closeMenu);
         document.getElementById('menuOverlay').addEventListener('click', closeMenu);
@@ -388,6 +435,34 @@
             resetAnimation();
             syncUIFromState();
         });
+
+        document.getElementById('audioTimelineStartHandle').addEventListener('pointerdown', function(e) {
+            beginAudioTrimDrag('start', e);
+        });
+
+        document.getElementById('audioTimelineEndHandle').addEventListener('pointerdown', function(e) {
+            beginAudioTrimDrag('end', e);
+        });
+
+        getTimelineTrack().addEventListener('pointerdown', function(e) {
+            var handle;
+            if (!getActiveAudioDuration()) return;
+            if (e.target.closest('.audio-timeline-handle')) return;
+            saveUndoState();
+            handle = getAudioTrimHandleForTime(getAudioTimelineTime(e.clientX));
+            activeAudioTrimHandle = handle;
+            applyAudioTrimFromTimeline(handle, getAudioTimelineTime(e.clientX));
+            e.preventDefault();
+        });
+
+        document.addEventListener('pointermove', function(e) {
+            if (!activeAudioTrimHandle) return;
+            applyAudioTrimFromTimeline(activeAudioTrimHandle, getAudioTimelineTime(e.clientX));
+            e.preventDefault();
+        });
+
+        document.addEventListener('pointerup', stopAudioTrimDrag);
+        document.addEventListener('pointercancel', stopAudioTrimDrag);
 
         audioTrack.addEventListener('loadedmetadata', function() {
             if (state.audioSourceMode === 'backgroundVideo' && hasBackgroundVideoAudio()) {

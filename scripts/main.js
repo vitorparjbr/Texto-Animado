@@ -418,6 +418,8 @@
                 var selectionWidth = ((trimEnd - trimStart) / getActiveAudioDuration()) * 100;
                 document.getElementById('audioTimelineSelection').style.left = selectionLeft + '%';
                 document.getElementById('audioTimelineSelection').style.width = selectionWidth + '%';
+                document.getElementById('audioTimelineStartHandle').style.left = selectionLeft + '%';
+                document.getElementById('audioTimelineEndHandle').style.left = (selectionLeft + selectionWidth) + '%';
                 document.getElementById('audioTimelineStart').textContent = formatSeconds(trimStart);
                 document.getElementById('audioTimelineEnd').textContent = formatSeconds(trimEnd);
                 document.getElementById('audioTimelineLength').textContent = 'Trecho ' + formatSeconds(trimEnd - trimStart);
