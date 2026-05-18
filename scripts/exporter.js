@@ -103,7 +103,8 @@
         const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), clipDuration);
 
         const startAt = 0.05;
-        const stopAt = startAt + clipDuration;
+        const needsLoop = totalDurationSec > startAt + clipDuration;
+        const effectiveEnd = needsLoop ? totalDurationSec : startAt + clipDuration;
 
         source.buffer = audioBuffer;
         source.connect(gainNode);
@@ -112,12 +113,20 @@
         gainNode.gain.setValueAtTime(fadeIn > 0 ? 0 : volume, startAt);
         if (fadeIn > 0) gainNode.gain.linearRampToValueAtTime(volume, startAt + fadeIn);
         if (fadeOut > 0) {
-            const fadeOutStart = Math.max(startAt, stopAt - fadeOut);
+            const fadeOutStart = Math.max(startAt, effectiveEnd - fadeOut);
             gainNode.gain.setValueAtTime(volume, fadeOutStart);
-            gainNode.gain.linearRampToValueAtTime(0.0001, stopAt);
+            gainNode.gain.linearRampToValueAtTime(0.0001, effectiveEnd);
         }
 
-        source.start(startAt, trimStart, clipDuration);
+        if (needsLoop) {
+            source.loop = true;
+            source.loopStart = trimStart;
+            source.loopEnd = trimEnd;
+            source.start(startAt, trimStart);
+            source.stop(totalDurationSec);
+        } else {
+            source.start(startAt, trimStart, clipDuration);
+        }
 
         return await offlineCtx.startRendering();
     }
@@ -268,7 +277,7 @@
     }
 
     // --- MediaRecorder Fallback ---
-    async function createImportedAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd) {
+    async function createImportedAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec) {
         const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextCtor) throw new Error('Navegador sem suporte a mixagem.');
         if (!state.audioBuffer) throw new Error('Aguarde o audio carregar.');
@@ -283,10 +292,12 @@
         const source = audioContext.createBufferSource();
         const gainNode = audioContext.createGain();
         const volume = Math.max(0, Math.min(state.audioVolume || 0, 1));
-        const fadeIn = Math.min(Math.max(0, state.audioFadeIn || 0), clipDuration);
-        const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), clipDuration);
         const startAt = audioContext.currentTime + 0.05;
-        const stopAt = startAt + clipDuration;
+        const needsLoop = totalDurationSec > 0 && totalDurationSec > clipDuration;
+        const effectiveDuration = needsLoop ? totalDurationSec : clipDuration;
+        const fadeIn = Math.min(Math.max(0, state.audioFadeIn || 0), effectiveDuration);
+        const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), effectiveDuration);
+        const stopAt = startAt + effectiveDuration;
 
         source.buffer = state.audioBuffer;
         source.connect(gainNode);
@@ -301,8 +312,16 @@
         }
 
         await audioContext.resume();
-        source.start(startAt, trimStart, clipDuration);
-        source.stop(stopAt + 0.02);
+        if (needsLoop) {
+            source.loop = true;
+            source.loopStart = trimStart;
+            source.loopEnd = trimEnd;
+            source.start(startAt, trimStart);
+            source.stop(stopAt + 0.02);
+        } else {
+            source.start(startAt, trimStart, clipDuration);
+            source.stop(stopAt + 0.02);
+        }
 
         return {
             stream: destination.stream,
@@ -326,7 +345,7 @@
         });
     }
 
-    async function createBackgroundVideoAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd) {
+    async function createBackgroundVideoAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec) {
         const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextCtor) throw new Error('Navegador sem suporte a mixagem.');
         if (!state.mediaSource) throw new Error('Importe um video.');
@@ -341,12 +360,15 @@
         const sourceVideo = document.createElement('video');
         const gainNode = audioContext.createGain();
         const volume = Math.max(0, Math.min(state.audioVolume || 0, 1));
-        const fadeIn = Math.min(Math.max(0, state.audioFadeIn || 0), clipDuration);
-        const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), clipDuration);
+        const needsLoop = totalDurationSec > 0 && totalDurationSec > clipDuration;
+        const effectiveDuration = needsLoop ? totalDurationSec : clipDuration;
+        const fadeIn = Math.min(Math.max(0, state.audioFadeIn || 0), effectiveDuration);
+        const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), effectiveDuration);
         const startAt = audioContext.currentTime + 0.05;
-        const stopAt = startAt + clipDuration;
+        const stopAt = startAt + effectiveDuration;
         let sourceNode;
         let stopTimer;
+        let loopListener = null;
 
         sourceVideo.preload = 'auto';
         sourceVideo.playsInline = true;
@@ -376,14 +398,28 @@
 
         await audioContext.resume();
         await sourceVideo.play();
-        stopTimer = setTimeout(function() {
-            sourceVideo.pause();
-        }, (clipDuration * 1000) + 50);
+
+        if (needsLoop) {
+            loopListener = function() {
+                if (sourceVideo.currentTime >= trimEnd - 0.15) {
+                    sourceVideo.currentTime = trimStart;
+                }
+            };
+            sourceVideo.addEventListener('timeupdate', loopListener);
+            stopTimer = setTimeout(function() {
+                sourceVideo.pause();
+            }, (totalDurationSec * 1000) + 50);
+        } else {
+            stopTimer = setTimeout(function() {
+                sourceVideo.pause();
+            }, (clipDuration * 1000) + 50);
+        }
 
         return {
             stream: destination.stream,
             cleanup: function() {
                 clearTimeout(stopTimer);
+                if (loopListener) sourceVideo.removeEventListener('timeupdate', loopListener);
                 sourceVideo.pause();
                 sourceVideo.removeAttribute('src');
                 sourceVideo.load();
@@ -402,10 +438,11 @@
         let audioExport = null;
         let streamTracks = canvasStream.getVideoTracks().slice();
 
+        const totalDurationSec = duration / 1000;
         if (activeAudioMode === 'imported') {
-            audioExport = await createImportedAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd);
+            audioExport = await createImportedAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec);
         } else if (activeAudioMode === 'backgroundVideo') {
-            audioExport = await createBackgroundVideoAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd);
+            audioExport = await createBackgroundVideoAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec);
         }
 
         if (audioExport && audioExport.stream) {

@@ -163,7 +163,10 @@
 
         trimStart = getAudioTrimStart();
         trimEnd = getAudioTrimEnd();
-        targetTime = Math.min(trimEnd, trimStart + state.globalTime);
+        const bgClipDuration = Math.max(0, trimEnd - trimStart);
+        // Loop the background video audio in preview when globalTime exceeds the clip
+        const bgLoopedOffset = bgClipDuration > 0 ? (state.globalTime % bgClipDuration) : state.globalTime;
+        targetTime = trimStart + bgLoopedOffset;
 
         if (
             forceSeek ||
@@ -200,7 +203,10 @@
 
         const trimStart = getAudioTrimStart();
         const trimEnd = getAudioTrimEnd();
-        const targetTime = Math.min(trimEnd, trimStart + state.globalTime);
+        const clipDuration = Math.max(0, trimEnd - trimStart);
+        // Loop the audio in preview: when globalTime exceeds the clip, wrap it around
+        const loopedOffset = clipDuration > 0 ? (state.globalTime % clipDuration) : state.globalTime;
+        const targetTime = trimStart + loopedOffset;
 
         applyAudioVolume();
 
