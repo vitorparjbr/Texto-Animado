@@ -36,7 +36,7 @@ O TextFlow permite:
 ```text
 index.html            # Página principal
 manifest.json         # Manifesto PWA (ícones separados any/maskable, shortcuts)
-service-worker.js     # Cache offline (textflow-v17)
+service-worker.js     # Cache offline (textflow-v18)
 styles/
   utils.css           # Utilitários CSS locais (substituto do Tailwind CDN)
   main.css            # Estilos globais e componentes visuais
@@ -147,7 +147,7 @@ Chaves no `localStorage`: `textflow_project_slot1` a `textflow_project_slot5`.
 
 ## PWA / Offline
 
-- Service Worker `textflow-v17` cacheia o app shell e assets estáticos na primeira abertura online.
+- Service Worker `textflow-v18` cacheia o app shell e assets estáticos na primeira abertura online.
 - Após a primeira visita, o app funciona completamente offline.
 - Instalável em Android via Chrome ("Adicionar à tela inicial" ou prompt automático).
 - Ícones com entradas separadas `"purpose": "any"` e `"purpose": "maskable"` — exibidos corretamente em launchers adaptivos do Android.
