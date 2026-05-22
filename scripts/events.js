@@ -19,7 +19,9 @@
             closeMenu,
             isMenuOpen,
             showToast,
-            runExport
+            runExport,
+            getBaseVideoDuration,
+            getVideoDuration
         } = deps;
 
         function hasBackgroundVideoAudio() {
@@ -546,6 +548,41 @@
             syncUIFromState();
         });
 
+        document.getElementById('exportTrimActive').addEventListener('change', function(e) {
+            saveUndoState();
+            state.exportTrimActive = !!e.target.checked;
+            const baseDuration = getBaseVideoDuration();
+            if (!state.exportTrimEnd || state.exportTrimEnd > baseDuration) {
+                state.exportTrimEnd = baseDuration;
+            }
+            resetAnimation();
+            syncUIFromState();
+        });
+
+        document.getElementById('exportTrimStart').addEventListener('change', function(e) {
+            saveUndoState();
+            const baseDuration = getBaseVideoDuration();
+            const val = clampAudioValue(e.target.value, 0);
+            state.exportTrimStart = Math.min(val, baseDuration);
+            if (state.exportTrimEnd < state.exportTrimStart) {
+                state.exportTrimEnd = state.exportTrimStart;
+            }
+            resetAnimation();
+            syncUIFromState();
+        });
+
+        document.getElementById('exportTrimEnd').addEventListener('change', function(e) {
+            saveUndoState();
+            const baseDuration = getBaseVideoDuration();
+            const val = clampAudioValue(e.target.value, baseDuration);
+            state.exportTrimEnd = Math.min(val, baseDuration);
+            if (state.exportTrimStart > state.exportTrimEnd) {
+                state.exportTrimStart = state.exportTrimEnd;
+            }
+            resetAnimation();
+            syncUIFromState();
+        });
+
         document.getElementById('addLayerBtn').addEventListener('click', function() {
             saveUndoState();
             const newLayer = createDefaultLayer(state.nextLayerId++);
@@ -578,7 +615,10 @@
                 format: state.format,
                 resolution: state.resolution,
                 bgTransparent: state.bgTransparent,
-                bgColor: state.bgColor
+                bgColor: state.bgColor,
+                exportTrimActive: state.exportTrimActive,
+                exportTrimStart: state.exportTrimStart,
+                exportTrimEnd: state.exportTrimEnd
             };
 
             try {
@@ -628,6 +668,9 @@
                 state.resolution = data.resolution || 720;
                 state.bgTransparent = data.bgTransparent !== undefined ? data.bgTransparent : true;
                 state.bgColor = data.bgColor || '#0a0a0f';
+                state.exportTrimActive = data.exportTrimActive || false;
+                state.exportTrimStart = data.exportTrimStart || 0;
+                state.exportTrimEnd = data.exportTrimEnd || 0;
                 state.audioSourceMode = 'imported';
                 state.audioTrimStart = 0;
                 state.audioTrimEnd = 0;

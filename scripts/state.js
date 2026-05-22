@@ -64,6 +64,9 @@
         audioVolume: 1,
         audioBuffer: null,
         audioIsDecoding: false,
+        exportTrimActive: false,
+        exportTrimStart: 0,
+        exportTrimEnd: 0,
         isExporting: false,
         isPlaying: true,
         globalTime: 0,
@@ -109,7 +112,10 @@
             audioTrimEnd: state.audioTrimEnd,
             audioFadeIn: state.audioFadeIn,
             audioFadeOut: state.audioFadeOut,
-            audioVolume: state.audioVolume
+            audioVolume: state.audioVolume,
+            exportTrimActive: state.exportTrimActive,
+            exportTrimStart: state.exportTrimStart,
+            exportTrimEnd: state.exportTrimEnd
         });
     }
 

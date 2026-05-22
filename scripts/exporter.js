@@ -163,7 +163,7 @@
         await audioEncoder.flush();
     }
 
-    async function exportVideoWebCodecs(deps, duration, activeAudioMode) {
+        async function exportVideoWebCodecs(deps, duration, activeAudioMode, exportStartMs, baseDuration) {
         const { canvas, state, getAudioTrimStart, getAudioTrimEnd, resetAnimation, showToast } = deps;
         const statusEl = document.getElementById('exportStatus');
         const progressBar = document.getElementById('progressBar');
@@ -202,7 +202,7 @@
 
         for (let i = 0; i < totalFrames; i++) {
             if (videoError) throw videoError;
-            state.globalTime = i / 30;
+            state.globalTime = (exportStartMs / 1000) + (i / 30);
 
             if (state.mediaType === 'video' && videoBg.src) {
                 videoBg.currentTime = getAudioTrimStart() + state.globalTime;
@@ -251,7 +251,27 @@
             statusEl.textContent = 'Processando Áudio...';
             progressBar.style.width = '85%';
             try {
-                const audioBuffer = await renderOfflineAudioBuffer(state, getAudioTrimStart, getAudioTrimEnd, duration / 1000);
+                let audioBuffer = await renderOfflineAudioBuffer(state, getAudioTrimStart, getAudioTrimEnd, baseDuration / 1000);
+                if (audioBuffer && exportStartMs > 0) {
+                    const sampleRate = audioBuffer.sampleRate;
+                    const startFrame = Math.floor((exportStartMs / 1000) * sampleRate);
+                    const numFrames = Math.floor((duration / 1000) * sampleRate);
+                    const numChannels = audioBuffer.numberOfChannels;
+
+                    const offlineCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(
+                        numChannels,
+                        numFrames,
+                        sampleRate
+                    );
+                    const slicedBuffer = offlineCtx.createBuffer(numChannels, numFrames, sampleRate);
+                    for (let c = 0; c < numChannels; c++) {
+                        const targetData = slicedBuffer.getChannelData(c);
+                        const sourceData = audioBuffer.getChannelData(c);
+                        targetData.set(sourceData.subarray(startFrame, startFrame + numFrames));
+                    }
+                    audioBuffer = slicedBuffer;
+                }
+
                 if (audioBuffer) {
                     let audioEncodeError = null;
                     const audioEncoder = new AudioEncoder({
@@ -277,7 +297,7 @@
     }
 
     // --- MediaRecorder Fallback ---
-    async function createImportedAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec) {
+    async function createImportedAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec, exportStartSec) {
         const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextCtor) throw new Error('Navegador sem suporte a mixagem.');
         if (!state.audioBuffer) throw new Error('Aguarde o audio carregar.');
@@ -287,14 +307,16 @@
         const clipDuration = Math.max(0, trimEnd - trimStart);
         if (!clipDuration) return null;
 
+        const audioOffset = exportStartSec ? (exportStartSec % clipDuration) : 0;
+
         const audioContext = new AudioContextCtor();
         const destination = audioContext.createMediaStreamDestination();
         const source = audioContext.createBufferSource();
         const gainNode = audioContext.createGain();
         const volume = Math.max(0, Math.min(state.audioVolume || 0, 1));
         const startAt = audioContext.currentTime + 0.05;
-        const needsLoop = totalDurationSec > 0 && totalDurationSec > clipDuration;
-        const effectiveDuration = needsLoop ? totalDurationSec : clipDuration;
+        const needsLoop = totalDurationSec > 0 && totalDurationSec > (clipDuration - audioOffset);
+        const effectiveDuration = totalDurationSec;
         const fadeIn = Math.min(Math.max(0, state.audioFadeIn || 0), effectiveDuration);
         const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), effectiveDuration);
         const stopAt = startAt + effectiveDuration;
@@ -316,10 +338,10 @@
             source.loop = true;
             source.loopStart = trimStart;
             source.loopEnd = trimEnd;
-            source.start(startAt, trimStart);
+            source.start(startAt, trimStart + audioOffset);
             source.stop(stopAt + 0.02);
         } else {
-            source.start(startAt, trimStart, clipDuration);
+            source.start(startAt, trimStart + audioOffset, clipDuration - audioOffset);
             source.stop(stopAt + 0.02);
         }
 
@@ -345,7 +367,7 @@
         });
     }
 
-    async function createBackgroundVideoAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec) {
+    async function createBackgroundVideoAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec, exportStartSec) {
         const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
         if (!AudioContextCtor) throw new Error('Navegador sem suporte a mixagem.');
         if (!state.mediaSource) throw new Error('Importe um video.');
@@ -355,13 +377,15 @@
         const clipDuration = Math.max(0, trimEnd - trimStart);
         if (!clipDuration) return null;
 
+        const audioOffset = exportStartSec ? (exportStartSec % clipDuration) : 0;
+
         const audioContext = new AudioContextCtor();
         const destination = audioContext.createMediaStreamDestination();
         const sourceVideo = document.createElement('video');
         const gainNode = audioContext.createGain();
         const volume = Math.max(0, Math.min(state.audioVolume || 0, 1));
-        const needsLoop = totalDurationSec > 0 && totalDurationSec > clipDuration;
-        const effectiveDuration = needsLoop ? totalDurationSec : clipDuration;
+        const needsLoop = totalDurationSec > 0 && totalDurationSec > (clipDuration - audioOffset);
+        const effectiveDuration = totalDurationSec;
         const fadeIn = Math.min(Math.max(0, state.audioFadeIn || 0), effectiveDuration);
         const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), effectiveDuration);
         const startAt = audioContext.currentTime + 0.05;
@@ -379,8 +403,9 @@
             await waitForMediaElementEvent(sourceVideo, 'loadedmetadata');
         }
 
-        if (trimStart > 0) {
-            sourceVideo.currentTime = trimStart;
+        const finalTrimStart = trimStart + audioOffset;
+        if (finalTrimStart > 0) {
+            sourceVideo.currentTime = finalTrimStart;
             await waitForMediaElementEvent(sourceVideo, 'seeked');
         }
 
@@ -412,7 +437,7 @@
         } else {
             stopTimer = setTimeout(function() {
                 sourceVideo.pause();
-            }, (clipDuration * 1000) + 50);
+            }, (effectiveDuration * 1000) + 50);
         }
 
         return {
@@ -429,7 +454,7 @@
         };
     }
 
-    async function exportVideoMediaRecorder(deps, mimeType, ext, duration, activeAudioMode) {
+    async function exportVideoMediaRecorder(deps, mimeType, ext, duration, activeAudioMode, exportStartMs, baseDuration) {
         const { canvas, state, getAudioTrimStart, getAudioTrimEnd, resetAnimation, updatePlayPauseUI } = deps;
         const statusEl = document.getElementById('exportStatus');
         const progressBar = document.getElementById('progressBar');
@@ -439,10 +464,12 @@
         let streamTracks = canvasStream.getVideoTracks().slice();
 
         const totalDurationSec = duration / 1000;
+        const exportStartSec = exportStartMs / 1000;
+
         if (activeAudioMode === 'imported') {
-            audioExport = await createImportedAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec);
+            audioExport = await createImportedAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec, exportStartSec);
         } else if (activeAudioMode === 'backgroundVideo') {
-            audioExport = await createBackgroundVideoAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec);
+            audioExport = await createBackgroundVideoAudioExportStream(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec, exportStartSec);
         }
 
         if (audioExport && audioExport.stream) {
@@ -467,6 +494,7 @@
         statusEl.textContent = 'Gravando (~' + Math.ceil(duration / 1000) + 's)...';
 
         resetAnimation();
+        state.globalTime = exportStartMs;
         state.isPlaying = true;
         updatePlayPauseUI();
 
@@ -515,7 +543,18 @@
             const activeAudioMode = getActiveAudioMode(state);
             const visualDuration = getVisualDurationMs(canvas, state, getTotalTextHeight);
             const audioDuration = activeAudioMode !== 'none' ? Math.max(0, (getAudioTrimEnd() - getAudioTrimStart()) * 1000) : 0;
-            const duration = Math.max(visualDuration, audioDuration, 500);
+            const baseDuration = Math.max(visualDuration, audioDuration, 500);
+
+            // Respeita corte configurado pelo usuário se for ativo
+            let exportStartMs = 0;
+            let exportEndMs = baseDuration;
+
+            if (state.exportTrimActive && state.exportTrimEnd > state.exportTrimStart) {
+                exportStartMs = Math.max(0, state.exportTrimStart * 1000);
+                exportEndMs = Math.min(baseDuration, state.exportTrimEnd * 1000);
+            }
+
+            const duration = Math.max(500, exportEndMs - exportStartMs);
             
             let blob = null;
             let ext2;
@@ -525,7 +564,7 @@
                 try {
                     console.log('Using WebCodecs for export');
                     ext2 = 'mp4';
-                    blob = await exportVideoWebCodecs(deps, duration, activeAudioMode);
+                    blob = await exportVideoWebCodecs(deps, duration, activeAudioMode, exportStartMs, baseDuration);
                 } catch (webCodecsErr) {
                     // No mobile, o VideoEncoder pode falhar por codec não suportado,
                     // GPU ocupada, ou outros erros de hardware. Faz fallback para MediaRecorder.
@@ -549,7 +588,7 @@
                 if (!mimeType) throw new Error('Sem suporte a codecs de vídeo.');
 
                 ext2 = mimeType.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
-                blob = await exportVideoMediaRecorder(deps, mimeType, ext2, duration, activeAudioMode);
+                blob = await exportVideoMediaRecorder(deps, mimeType, ext2, duration, activeAudioMode, exportStartMs, baseDuration);
             }
 
             // Restore state

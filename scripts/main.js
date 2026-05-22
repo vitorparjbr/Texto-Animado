@@ -97,6 +97,44 @@
         syncPreviewAudio(true);
     }
 
+    function getBaseVideoDuration() {
+        const activeAudioMode = getActiveAudioMode();
+        const visualDurationMs = state.layers.reduce(function(maxDuration, layer) {
+            const anim = layer.animationType;
+            const isScroll = anim === 'scrollUp' || anim === 'scrollDown';
+            const startDelayMs = (layer.startDelay || 0) * 1000;
+            let layerDurationMs;
+
+            if (isScroll) {
+                const textHeight = getTotalTextHeight(ctx, canvas, state.layers);
+                const totalDistance = canvas.height + textHeight + 100;
+                const pixelsPerSecond = state.speed * 60;
+                layerDurationMs = (totalDistance / pixelsPerSecond) * 1000;
+            } else {
+                layerDurationMs = Math.max(500, (5 / state.speed) * 1000);
+            }
+
+            return Math.max(maxDuration, startDelayMs + layerDurationMs);
+        }, 500);
+
+        const trimStart = getAudioTrimStart();
+        const trimEnd = getAudioTrimEnd();
+        const audioDurationMs = activeAudioMode !== 'none' ? Math.max(0, (trimEnd - trimStart) * 1000) : 0;
+        
+        return Math.max(visualDurationMs, audioDurationMs, 500) / 1000; // em segundos
+    }
+
+    function getVideoDuration() {
+        if (state.exportTrimActive) {
+            const trimStart = state.exportTrimStart || 0;
+            const trimEnd = state.exportTrimEnd || 0;
+            if (trimEnd > trimStart) {
+                return trimEnd - trimStart;
+            }
+        }
+        return getBaseVideoDuration();
+    }
+
     function formatSeconds(seconds) {
         return (Math.round(seconds * 10) / 10).toFixed(1) + 's';
     }
@@ -450,6 +488,38 @@
             delayValEl.textContent = (layer.startDelay || 0).toFixed(1) + 's';
         }
 
+        // Cortar Vídeo UI syncing
+        const trimActiveCheckbox = document.getElementById('exportTrimActive');
+        const trimControls = document.getElementById('exportTrimControls');
+        const trimStartInput = document.getElementById('exportTrimStart');
+        const trimEndInput = document.getElementById('exportTrimEnd');
+        const estimatedDurationText = document.getElementById('estimatedDurationText');
+        
+        const baseDuration = getBaseVideoDuration();
+        
+        if (!state.exportTrimEnd || state.exportTrimEnd > baseDuration) {
+            state.exportTrimEnd = baseDuration;
+        }
+
+        if (trimActiveCheckbox) {
+            trimActiveCheckbox.checked = !!state.exportTrimActive;
+        }
+        if (trimControls) {
+            trimControls.style.display = state.exportTrimActive ? 'block' : 'none';
+        }
+        if (trimStartInput) {
+            trimStartInput.value = (state.exportTrimStart || 0).toFixed(1);
+            trimStartInput.max = baseDuration.toFixed(1);
+        }
+        if (trimEndInput) {
+            trimEndInput.value = (state.exportTrimEnd || baseDuration).toFixed(1);
+            trimEndInput.max = baseDuration.toFixed(1);
+        }
+        if (estimatedDurationText) {
+            const finalDuration = getVideoDuration();
+            estimatedDurationText.textContent = finalDuration.toFixed(1) + 's';
+        }
+
         renderLayers();
     }
 
@@ -527,6 +597,32 @@
             state.globalTime += delta;
         }
 
+        // Loop da animação respeitando corte de exportação e tempo total do vídeo
+        const baseDuration = getBaseVideoDuration();
+        const duration = getVideoDuration();
+
+        if (state.exportTrimActive) {
+            const tStart = Math.min(state.exportTrimStart || 0, baseDuration);
+            const tEnd = Math.min(state.exportTrimEnd || baseDuration, baseDuration);
+
+            if (state.globalTime < tStart) {
+                state.globalTime = tStart;
+                if (state.mediaType === 'video') syncBackgroundVideo(true);
+                syncPreviewAudio(true);
+            }
+            if (state.globalTime >= tEnd) {
+                state.globalTime = tStart;
+                if (state.mediaType === 'video') syncBackgroundVideo(true);
+                syncPreviewAudio(true);
+            }
+        } else {
+            if (state.globalTime >= duration) {
+                state.globalTime = 0;
+                if (state.mediaType === 'video') syncBackgroundVideo(true);
+                syncPreviewAudio(true);
+            }
+        }
+
         if (getActiveAudioMode() === 'backgroundVideo') {
             syncBackgroundVideo(false);
         }
@@ -536,6 +632,17 @@
         }
 
         render(ctx, canvas, state, videoBg, imageBg, easings);
+
+        // Atualiza o tempo na UI (control-dock)
+        const timeInd = document.getElementById('timeIndicator');
+        if (timeInd) {
+            let displayTime = state.globalTime;
+            if (state.exportTrimActive) {
+                displayTime = Math.max(0, state.globalTime - (state.exportTrimStart || 0));
+            }
+            timeInd.textContent = displayTime.toFixed(1) + 's / ' + duration.toFixed(1) + 's';
+        }
+
         state.animationId = requestAnimationFrame(animate);
     }
 
@@ -558,7 +665,9 @@
         closeMenu,
         isMenuOpen,
         showToast,
-        runExport
+        runExport,
+        getBaseVideoDuration,
+        getVideoDuration
     });
 
     window.addEventListener('resize', handleResize);
