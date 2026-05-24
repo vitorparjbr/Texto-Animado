@@ -23,6 +23,57 @@
             getBaseVideoDuration,
             getVideoDuration
         } = deps;
+        const stateApi = window.TextFlowState || {};
+        const applyInlineStyle = stateApi.applyInlineStyle;
+        const getSelectionStyleState = stateApi.getSelectionStyleState;
+        const syncInlineStylesWithText = stateApi.syncInlineStylesWithText;
+
+        function getTextSelectionRange() {
+            const input = document.getElementById('textInput');
+            return {
+                input: input,
+                start: input.selectionStart || 0,
+                end: input.selectionEnd || 0
+            };
+        }
+
+        function applyStyleToSelection(patch, getFallbackValue) {
+            const selection = getTextSelectionRange();
+            const layer = getActiveLayer();
+            if (selection.end > selection.start && typeof applyInlineStyle === 'function') {
+                saveUndoState();
+                applyInlineStyle(layer, selection.start, selection.end, patch);
+                selection.input.focus();
+                selection.input.setSelectionRange(selection.start, selection.end);
+                return true;
+            }
+
+            if (typeof getFallbackValue === 'function') {
+                saveUndoState();
+                getFallbackValue(layer);
+            }
+            return false;
+        }
+
+        function toggleSelectionBooleanStyle(key, buttonId) {
+            const selection = getTextSelectionRange();
+            const layer = getActiveLayer();
+            if (selection.end > selection.start && typeof applyInlineStyle === 'function' && typeof getSelectionStyleState === 'function') {
+                const selectionState = getSelectionStyleState(layer, selection.start, selection.end)[key];
+                const nextValue = selectionState.mixed ? true : !selectionState.value;
+                saveUndoState();
+                const patch = {};
+                patch[key] = nextValue;
+                applyInlineStyle(layer, selection.start, selection.end, patch);
+                selection.input.focus();
+                selection.input.setSelectionRange(selection.start, selection.end);
+                return;
+            }
+
+            saveUndoState();
+            layer[key] = !layer[key];
+            document.getElementById(buttonId).classList.toggle('active', layer[key]);
+        }
 
         function hasBackgroundVideoAudio() {
             return state.mediaType === 'video' && !!state.mediaSource;
@@ -164,7 +215,7 @@
 
         var textInputTimer;
         document.getElementById('textInput').addEventListener('input', function(e) {
-            getActiveLayer().text = e.target.value || '';
+            syncInlineStylesWithText(getActiveLayer(), e.target.value || '');
             var activeLayerText = document.querySelector('.layer-item.active .layer-text');
             if (activeLayerText) {
                 activeLayerText.textContent = e.target.value || '(vazio)';
@@ -215,33 +266,31 @@
         });
 
         document.getElementById('fontFamily').addEventListener('change', function(e) {
-            saveUndoState();
-            getActiveLayer().fontFamily = e.target.value;
+            applyStyleToSelection({ fontFamily: e.target.value }, function(layer) {
+                layer.fontFamily = e.target.value;
+            });
         });
 
         document.getElementById('fontSize').addEventListener('input', function(e) {
-            saveUndoState();
-            getActiveLayer().fontSize = Math.max(12, Math.min(200, parseInt(e.target.value, 10) || 48));
+            const nextSize = Math.max(12, Math.min(200, parseInt(e.target.value, 10) || 48));
+            applyStyleToSelection({ fontSize: nextSize }, function(layer) {
+                layer.fontSize = nextSize;
+            });
         });
 
         document.getElementById('textColor').addEventListener('input', function(e) {
-            saveUndoState();
-            getActiveLayer().textColor = e.target.value;
+            applyStyleToSelection({ textColor: e.target.value }, function(layer) {
+                layer.textColor = e.target.value;
+            });
             document.getElementById('colorHex').textContent = e.target.value;
         });
 
-        document.getElementById('boldToggle').addEventListener('click', function(e) {
-            saveUndoState();
-            const layer = getActiveLayer();
-            layer.bold = !layer.bold;
-            e.currentTarget.classList.toggle('active');
+        document.getElementById('boldToggle').addEventListener('click', function() {
+            toggleSelectionBooleanStyle('bold', 'boldToggle');
         });
 
-        document.getElementById('italicToggle').addEventListener('click', function(e) {
-            saveUndoState();
-            const layer = getActiveLayer();
-            layer.italic = !layer.italic;
-            e.currentTarget.classList.toggle('active');
+        document.getElementById('italicToggle').addEventListener('click', function() {
+            toggleSelectionBooleanStyle('italic', 'italicToggle');
         });
 
         document.getElementById('gradientToggle').addEventListener('click', function(e) {
@@ -717,18 +766,12 @@
                 }
                 if (e.key === 'b' || e.key === 'B') {
                     e.preventDefault();
-                    saveUndoState();
-                    const layer = getActiveLayer();
-                    layer.bold = !layer.bold;
-                    document.getElementById('boldToggle').classList.toggle('active');
+                    toggleSelectionBooleanStyle('bold', 'boldToggle');
                     return;
                 }
                 if (e.key === 'i' || e.key === 'I') {
                     e.preventDefault();
-                    saveUndoState();
-                    const layer2 = getActiveLayer();
-                    layer2.italic = !layer2.italic;
-                    document.getElementById('italicToggle').classList.toggle('active');
+                    toggleSelectionBooleanStyle('italic', 'italicToggle');
                     return;
                 }
                 if (e.key === 'e' || e.key === 'E') {

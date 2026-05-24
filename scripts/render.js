@@ -1,42 +1,215 @@
 (() => {
-    function getFont(layer) {
-        const weight = layer.bold ? 'bold' : 'normal';
-        const style = layer.italic ? 'italic' : 'normal';
-        return style + ' ' + weight + ' ' + layer.fontSize + 'px "' + layer.fontFamily + '", sans-serif';
+    function getFont(style) {
+        const weight = style.bold ? 'bold' : 'normal';
+        const fontStyle = style.italic ? 'italic' : 'normal';
+        return fontStyle + ' ' + weight + ' ' + style.fontSize + 'px "' + style.fontFamily + '", sans-serif';
+    }
+
+    function getResolvedStyle(layer, index) {
+        if (window.TextFlowState && typeof window.TextFlowState.getResolvedTextStyle === 'function') {
+            return window.TextFlowState.getResolvedTextStyle(layer, index);
+        }
+        return {
+            fontFamily: layer.fontFamily,
+            fontSize: layer.fontSize,
+            textColor: layer.textColor,
+            bold: layer.bold,
+            italic: layer.italic
+        };
+    }
+
+    function sameStyle(a, b) {
+        return !!a && !!b &&
+            a.fontFamily === b.fontFamily &&
+            a.fontSize === b.fontSize &&
+            a.textColor === b.textColor &&
+            a.bold === b.bold &&
+            a.italic === b.italic;
+    }
+
+    function isInlineWhitespace(char) {
+        return char !== '\n' && /\s/.test(char);
+    }
+
+    function measureTextWithStyle(ctx, text, style) {
+        ctx.font = getFont(style);
+        return ctx.measureText(text).width;
+    }
+
+    function buildStyledTokens(layer, text) {
+        const safeText = text || '';
+        const tokens = [];
+        let index = 0;
+
+        while (index < safeText.length) {
+            const currentChar = safeText.charAt(index);
+            if (currentChar === '\n') {
+                tokens.push({ type: 'newline' });
+                index++;
+                continue;
+            }
+
+            const style = getResolvedStyle(layer, index);
+            const whitespace = isInlineWhitespace(currentChar);
+            let value = currentChar;
+            index++;
+
+            while (index < safeText.length) {
+                const nextChar = safeText.charAt(index);
+                if (nextChar === '\n') break;
+                if (isInlineWhitespace(nextChar) !== whitespace) break;
+                if (!sameStyle(style, getResolvedStyle(layer, index))) break;
+                value += nextChar;
+                index++;
+            }
+
+            tokens.push({
+                type: whitespace ? 'space' : 'text',
+                text: value,
+                style: style
+            });
+        }
+
+        return tokens;
+    }
+
+    function createEmptyLine() {
+        return {
+            fragments: [],
+            width: 0,
+            height: 0,
+            maxFontSize: 0
+        };
+    }
+
+    function appendFragment(line, fragment, width) {
+        const last = line.fragments[line.fragments.length - 1];
+        const resolvedWidth = width !== undefined ? width : fragment.width;
+
+        if (last && sameStyle(last.style, fragment.style)) {
+            last.text += fragment.text;
+            last.width += resolvedWidth;
+        } else {
+            line.fragments.push({
+                text: fragment.text,
+                style: fragment.style,
+                width: resolvedWidth
+            });
+        }
+
+        line.width += resolvedWidth;
+        line.maxFontSize = Math.max(line.maxFontSize, fragment.style.fontSize);
+        line.height = Math.max(1, line.maxFontSize * 1.3);
+    }
+
+    function splitStyledTextToken(ctx, token, maxWidth) {
+        let value = '';
+        let width = 0;
+        let position = 0;
+
+        while (position < token.text.length) {
+            const candidate = value + token.text.charAt(position);
+            const candidateWidth = measureTextWithStyle(ctx, candidate, token.style);
+            if (candidateWidth > maxWidth && value) break;
+            value = candidate;
+            width = candidateWidth;
+            position++;
+            if (candidateWidth > maxWidth) break;
+        }
+
+        if (!value) {
+            value = token.text.charAt(0);
+            width = measureTextWithStyle(ctx, value, token.style);
+            position = 1;
+        }
+
+        return [
+            { type: 'text', text: value, style: token.style, width: width },
+            position < token.text.length ? { type: 'text', text: token.text.slice(position), style: token.style } : null
+        ];
+    }
+
+    function layoutStyledText(ctx, layer, maxWidth, textOverride) {
+        const tokens = buildStyledTokens(layer, textOverride !== undefined ? textOverride : layer.text);
+        const lines = [];
+        let currentLine = createEmptyLine();
+
+        function commitLine(forceEmpty) {
+            if (!currentLine.fragments.length && !forceEmpty && lines.length) return;
+            if (!currentLine.fragments.length && !forceEmpty && !lines.length) {
+                currentLine.height = Math.max(1, layer.fontSize * 1.3);
+            }
+            lines.push(currentLine);
+            currentLine = createEmptyLine();
+        }
+
+        tokens.forEach(function(token) {
+            if (token.type === 'newline') {
+                commitLine(true);
+                return;
+            }
+
+            let pending = token;
+            while (pending) {
+                if (pending.type === 'space' && currentLine.fragments.length === 0) {
+                    pending = null;
+                    continue;
+                }
+
+                const availableWidth = currentLine.fragments.length === 0 ? maxWidth : Math.max(0, maxWidth - currentLine.width);
+                const pendingWidth = pending.width !== undefined ? pending.width : measureTextWithStyle(ctx, pending.text, pending.style);
+
+                if (pendingWidth <= availableWidth || currentLine.fragments.length === 0 && pendingWidth <= maxWidth) {
+                    appendFragment(currentLine, pending, pendingWidth);
+                    pending = null;
+                    continue;
+                }
+
+                if (pending.type === 'space') {
+                    commitLine(false);
+                    pending = null;
+                    continue;
+                }
+
+                if (currentLine.fragments.length > 0) {
+                    commitLine(false);
+                    continue;
+                }
+
+                const parts = splitStyledTextToken(ctx, pending, Math.max(1, maxWidth));
+                appendFragment(currentLine, parts[0], parts[0].width);
+                commitLine(false);
+                pending = parts[1];
+            }
+        });
+
+        if (!lines.length || currentLine.fragments.length) {
+            if (!currentLine.fragments.length) {
+                currentLine.height = Math.max(1, layer.fontSize * 1.3);
+            }
+            lines.push(currentLine);
+        }
+
+        const totalHeight = lines.reduce(function(sum, line) {
+            return sum + (line.height || Math.max(1, layer.fontSize * 1.3));
+        }, 0);
+
+        return {
+            lines: lines,
+            totalHeight: totalHeight
+        };
     }
 
     function wrapText(ctx, text, maxWidth, layer) {
-        ctx.font = getFont(layer);
-        const paragraphs = text.split('\n');
-        const allLines = [];
-
-        for (let p = 0; p < paragraphs.length; p++) {
-            const para = paragraphs[p];
-            if (para === '') {
-                allLines.push('');
-                continue;
-            }
-            const words = para.split(' ');
-            let currentLine = '';
-            for (let w = 0; w < words.length; w++) {
-                const word = words[w];
-                const testLine = currentLine + (currentLine ? ' ' : '') + word;
-                if (ctx.measureText(testLine).width > maxWidth && currentLine) {
-                    allLines.push(currentLine);
-                    currentLine = word;
-                } else {
-                    currentLine = testLine;
-                }
-            }
-            if (currentLine) allLines.push(currentLine);
-        }
-
-        return allLines.length ? allLines : [''];
+        return layoutStyledText(ctx, layer, maxWidth, text).lines.map(function(line) {
+            return line.fragments.map(function(fragment) {
+                return fragment.text;
+            }).join('');
+        });
     }
 
     function getTextHeight(ctx, canvas, layer) {
-        const lines = wrapText(ctx, layer.text, canvas.width - 40, layer);
-        return lines.length * layer.fontSize * 1.3;
+        return layoutStyledText(ctx, layer, canvas.width - 40).totalHeight;
     }
 
     function getTotalTextHeight(ctx, canvas, layers) {
@@ -48,30 +221,29 @@
     }
 
 
-    function applyEffect(ctx, layer, text, x, y) {
+    function applyEffect(ctx, layer, text, x, y, textStyle) {
         ctx.save();
 
-        const color = layer.textColor;
+        const style = textStyle || {
+            fontFamily: layer.fontFamily,
+            fontSize: layer.fontSize,
+            textColor: layer.textColor,
+            bold: layer.bold,
+            italic: layer.italic
+        };
+        const color = style.textColor;
         const effectColor = layer.effectColor;
         const thickness = Math.max(1, layer.effectThickness);
         const intensity = layer.effectIntensity / 100;
+
+        ctx.font = getFont(style);
+        ctx.textAlign = 'left';
 
         let fillStyle = color;
         if (layer.useGradient) {
             // Calculate gradient bounds based on real text width and alignment
             const textWidth = ctx.measureText(text).width;
-            let gradX0, gradX1;
-            if (layer.align === 'center') {
-                gradX0 = x - textWidth / 2;
-                gradX1 = x + textWidth / 2;
-            } else if (layer.align === 'right') {
-                gradX0 = x - textWidth;
-                gradX1 = x;
-            } else {
-                gradX0 = x;
-                gradX1 = x + textWidth;
-            }
-            const grad = ctx.createLinearGradient(gradX0, y, gradX1, y + layer.fontSize);
+            const grad = ctx.createLinearGradient(x, y, x + textWidth, y + style.fontSize);
             grad.addColorStop(0, layer.gradientColor1);
             grad.addColorStop(1, layer.gradientColor2);
             fillStyle = grad;
@@ -126,6 +298,57 @@
         ctx.restore();
     }
 
+    function cloneLayerWithText(layer, visibleText) {
+        const textLength = (visibleText || '').length;
+        return Object.assign({}, layer, {
+            text: visibleText,
+            inlineStyles: (layer.inlineStyles || []).reduce(function(acc, style) {
+                if (style.start >= textLength || style.end <= 0) return acc;
+                const nextStyle = Object.assign({}, style, {
+                    start: Math.max(0, Math.min(textLength, style.start)),
+                    end: Math.max(0, Math.min(textLength, style.end))
+                });
+                if (nextStyle.end > nextStyle.start) acc.push(nextStyle);
+                return acc;
+            }, [])
+        });
+    }
+
+    function getLineStartX(layer, anchorX, lineWidth) {
+        if (layer.align === 'center') return anchorX - lineWidth / 2;
+        if (layer.align === 'right') return anchorX - lineWidth;
+        return anchorX;
+    }
+
+    function drawLayout(ctx, layer, layout, anchorX, startY, yOffset, wavePhase) {
+        let currentY = startY + (yOffset || 0);
+
+        layout.lines.forEach(function(line) {
+            const lineStartX = getLineStartX(layer, anchorX, line.width);
+            let currentX = lineStartX;
+            let charIndex = 0;
+
+            line.fragments.forEach(function(fragment) {
+                if (wavePhase === undefined) {
+                    applyEffect(ctx, layer, fragment.text, currentX, currentY, fragment.style);
+                    currentX += fragment.width;
+                    return;
+                }
+
+                for (let i = 0; i < fragment.text.length; i++) {
+                    const char = fragment.text.charAt(i);
+                    const charWidth = measureTextWithStyle(ctx, char, fragment.style);
+                    const waveOffset = Math.sin(wavePhase + charIndex * 0.3) * 10;
+                    applyEffect(ctx, layer, char, currentX, currentY + waveOffset, fragment.style);
+                    currentX += charWidth;
+                    charIndex++;
+                }
+            });
+
+            currentY += line.height;
+        });
+    }
+
     function renderLayer(ctx, canvas, state, layer, easings) {
         const globalTime = state.globalTime;
         const delay = layer.startDelay || 0;
@@ -150,49 +373,44 @@
             t = easingFn(Math.min(1, (localTime % animDuration) / animDuration));
         }
 
-        const lines = wrapText(ctx, layer.text, canvas.width - 40, layer);
-        const lineHeight = layer.fontSize * 1.3;
-        const totalHeight = lines.length * lineHeight;
+        const layout = layoutStyledText(ctx, layer, canvas.width - 40);
+        const totalHeight = layout.totalHeight;
 
         ctx.save();
         ctx.font = getFont(layer);
         ctx.textBaseline = 'top';
-
-        ctx.textAlign = layer.align;
         let startX = 20;
         if (layer.align === 'center') startX = canvas.width / 2;
         if (layer.align === 'right') startX = canvas.width - 20;
+        const baseY = (canvas.height - totalHeight) / 2;
 
         if (anim === 'fadeIn') {
             ctx.globalAlpha = t;
-            for (let i = 0; i < lines.length; i++) {
-                const y = (canvas.height - totalHeight) / 2 + i * lineHeight;
-                applyEffect(ctx, layer, lines[i], startX, y);
-            }
+            drawLayout(ctx, layer, layout, startX, baseY);
             ctx.globalAlpha = 1;
         } else if (anim === 'typewriter') {
             const fullText = layer.text;
             const charsToShow = Math.floor(t * fullText.length);
             const visibleText = fullText.substring(0, charsToShow);
-            const visibleLines = wrapText(ctx, visibleText, canvas.width - 40, layer);
+            const visibleLayer = cloneLayerWithText(layer, visibleText);
+            const visibleLayout = layoutStyledText(ctx, visibleLayer, canvas.width - 40);
 
-            for (let i = 0; i < visibleLines.length; i++) {
-                const y = (canvas.height - totalHeight) / 2 + i * lineHeight;
-                applyEffect(ctx, layer, visibleLines[i], startX, y);
-            }
+            drawLayout(ctx, visibleLayer, visibleLayout, startX, baseY);
 
             if (charsToShow < fullText.length) {
-                const lastLine = visibleLines[visibleLines.length - 1] || '';
-                const lastY = (canvas.height - totalHeight) / 2 + (visibleLines.length - 1) * lineHeight;
-                const mw = ctx.measureText(lastLine).width;
-                let cursorX;
-                if (layer.align === 'center') cursorX = startX + mw / 2;
-                else if (layer.align === 'right') cursorX = startX;
-                else cursorX = startX + mw;
+                const lastLine = visibleLayout.lines[visibleLayout.lines.length - 1] || { fragments: [], width: 0, height: layer.fontSize * 1.3 };
+                const cursorStyle = charsToShow > 0 ? getResolvedStyle(layer, charsToShow - 1) : getResolvedStyle(layer, 0);
+                let lastY = baseY;
 
-                ctx.fillStyle = layer.textColor;
+                for (let i = 0; i < visibleLayout.lines.length - 1; i++) {
+                    lastY += visibleLayout.lines[i].height;
+                }
+
+                ctx.fillStyle = cursorStyle.textColor;
                 const blink = Math.sin(Date.now() / 200) > 0;
-                if (blink) ctx.fillRect(cursorX + 2, lastY, 2, layer.fontSize);
+                if (blink) {
+                    ctx.fillRect(getLineStartX(layer, startX, lastLine.width) + lastLine.width + 2, lastY, 2, cursorStyle.fontSize);
+                }
             }
         } else if (anim === 'zoomIn') {
             const scale = t;
@@ -200,80 +418,39 @@
             ctx.translate(canvas.width / 2, canvas.height / 2);
             ctx.scale(scale, scale);
             ctx.globalAlpha = t;
-            for (let i = 0; i < lines.length; i++) {
-                const y = -totalHeight / 2 + i * lineHeight;
-                const x = layer.align === 'center' ? 0 : layer.align === 'right' ? canvas.width / 2 - 20 : -canvas.width / 2 + 20;
-                applyEffect(ctx, layer, lines[i], x, y);
-            }
+            drawLayout(
+                ctx,
+                layer,
+                layout,
+                layer.align === 'center' ? 0 : layer.align === 'right' ? canvas.width / 2 - 20 : -canvas.width / 2 + 20,
+                -totalHeight / 2
+            );
             ctx.restore();
         } else if (anim === 'bounce') {
             const bounceY = (canvas.height - totalHeight) / 2 - (1 - t) * canvas.height * 0.5;
-            for (let i = 0; i < lines.length; i++) {
-                const y = bounceY + i * lineHeight;
-                if (y > -lineHeight && y < canvas.height + lineHeight) {
-                    applyEffect(ctx, layer, lines[i], startX, y);
-                }
-            }
+            drawLayout(ctx, layer, layout, startX, bounceY);
         } else if (anim === 'slideLeft') {
             const slideX = (1 - t) * (canvas.width + 100);
             ctx.save();
             ctx.translate(-slideX, 0);
-            for (let i = 0; i < lines.length; i++) {
-                const y = (canvas.height - totalHeight) / 2 + i * lineHeight;
-                applyEffect(ctx, layer, lines[i], startX, y);
-            }
+            drawLayout(ctx, layer, layout, startX, baseY);
             ctx.restore();
         } else if (anim === 'slideRight') {
             const slideX = (1 - t) * (canvas.width + 100);
             ctx.save();
             ctx.translate(slideX, 0);
-            for (let i = 0; i < lines.length; i++) {
-                const y = (canvas.height - totalHeight) / 2 + i * lineHeight;
-                applyEffect(ctx, layer, lines[i], startX, y);
-            }
+            drawLayout(ctx, layer, layout, startX, baseY);
             ctx.restore();
         } else if (anim === 'wave') {
-            const savedAlign = layer.align;
-            for (let i = 0; i < lines.length; i++) {
-                const y = (canvas.height - totalHeight) / 2 + i * lineHeight;
-                const chars = lines[i].split('');
-                let cx = startX;
-
-                if (layer.align === 'center') {
-                    cx = startX - ctx.measureText(lines[i]).width / 2;
-                    ctx.textAlign = 'left';
-                } else if (layer.align === 'right') {
-                    cx = startX - ctx.measureText(lines[i]).width;
-                    ctx.textAlign = 'left';
-                }
-
-                for (let ci = 0; ci < chars.length; ci++) {
-                    const waveOffset = Math.sin((t * Math.PI * 4) + ci * 0.3) * 10;
-                    applyEffect(ctx, layer, chars[ci], cx, y + waveOffset);
-                    cx += ctx.measureText(chars[ci]).width;
-                }
-
-                ctx.textAlign = savedAlign;
-            }
+            drawLayout(ctx, layer, layout, startX, baseY, 0, t * Math.PI * 4);
         } else if (anim === 'scrollUp') {
             const scrollY = (canvas.height + 50) - t * (canvas.height + totalHeight + 100);
-            for (let i = 0; i < lines.length; i++) {
-                const y = scrollY + i * lineHeight;
-                if (y < -lineHeight || y > canvas.height + lineHeight) continue;
-                applyEffect(ctx, layer, lines[i], startX, y);
-            }
+            drawLayout(ctx, layer, layout, startX, scrollY);
         } else if (anim === 'scrollDown') {
             const scrollY = (-totalHeight - 50) + t * (canvas.height + totalHeight + 100);
-            for (let i = 0; i < lines.length; i++) {
-                const y = scrollY + i * lineHeight;
-                if (y < -lineHeight || y > canvas.height + lineHeight) continue;
-                applyEffect(ctx, layer, lines[i], startX, y);
-            }
+            drawLayout(ctx, layer, layout, startX, scrollY);
         } else {
-            for (let i = 0; i < lines.length; i++) {
-                const y = (canvas.height - totalHeight) / 2 + i * lineHeight;
-                applyEffect(ctx, layer, lines[i], startX, y);
-            }
+            drawLayout(ctx, layer, layout, startX, baseY);
         }
 
         ctx.restore();

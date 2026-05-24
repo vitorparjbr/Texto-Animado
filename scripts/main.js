@@ -373,7 +373,12 @@
                     return layer.id === id;
                 });
                 if (!src) return;
-                const dup = Object.assign({}, src, { id: state.nextLayerId++ });
+                const dup = Object.assign({}, src, {
+                    id: state.nextLayerId++,
+                    inlineStyles: (src.inlineStyles || []).map(function(style) {
+                        return Object.assign({}, style);
+                    })
+                });
                 dup.text = src.text + ' (copia)';
                 state.layers.push(dup);
                 state.activeLayerId = dup.id;

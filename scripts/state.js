@@ -22,6 +22,7 @@
         return {
             id,
             text: 'Texto animado surgindo do rodapé',
+            inlineStyles: [],
             fontFamily: 'Space Grotesk',
             fontSize: 48,
             textColor: '#ffffff',
@@ -83,6 +84,224 @@
     const undoStack = [];
     const redoStack = [];
     let ignoreStateChange = false;
+
+    const inlineStyleKeys = ['fontFamily', 'fontSize', 'textColor', 'bold', 'italic'];
+
+    function ensureInlineStyles(layer) {
+        if (!layer || !Array.isArray(layer.inlineStyles)) {
+            layer.inlineStyles = [];
+        }
+        return layer.inlineStyles;
+    }
+
+    function cloneInlineStyle(style) {
+        const next = {
+            start: style.start,
+            end: style.end
+        };
+
+        inlineStyleKeys.forEach(function(key) {
+            if (style[key] !== undefined) next[key] = style[key];
+        });
+
+        return next;
+    }
+
+    function sanitizeInlineStyle(layer, style) {
+        const textLength = (layer.text || '').length;
+        const start = Math.max(0, Math.min(textLength, parseInt(style.start, 10) || 0));
+        const end = Math.max(start, Math.min(textLength, parseInt(style.end, 10) || 0));
+        const next = { start, end };
+
+        inlineStyleKeys.forEach(function(key) {
+            if (style[key] !== undefined) next[key] = style[key];
+        });
+
+        return next;
+    }
+
+    function sameInlinePatch(a, b) {
+        if (!a || !b) return false;
+        for (let i = 0; i < inlineStyleKeys.length; i++) {
+            const key = inlineStyleKeys[i];
+            if (a[key] !== b[key]) return false;
+        }
+        return true;
+    }
+
+    function normalizeInlineStyles(layer) {
+        const sanitized = ensureInlineStyles(layer)
+            .map(function(style) {
+                return sanitizeInlineStyle(layer, style);
+            })
+            .filter(function(style) {
+                if (style.end <= style.start) return false;
+                return inlineStyleKeys.some(function(key) {
+                    return style[key] !== undefined;
+                });
+            })
+            .sort(function(a, b) {
+                if (a.start !== b.start) return a.start - b.start;
+                return a.end - b.end;
+            });
+
+        const merged = [];
+
+        sanitized.forEach(function(style) {
+            const previous = merged[merged.length - 1];
+            if (previous && previous.end === style.start && sameInlinePatch(previous, style)) {
+                previous.end = style.end;
+                return;
+            }
+            merged.push(style);
+        });
+
+        layer.inlineStyles = merged;
+        return layer.inlineStyles;
+    }
+
+    function getResolvedTextStyle(layer, index) {
+        const resolved = {
+            fontFamily: layer.fontFamily,
+            fontSize: layer.fontSize,
+            textColor: layer.textColor,
+            bold: layer.bold,
+            italic: layer.italic
+        };
+
+        ensureInlineStyles(layer).forEach(function(style) {
+            if (index < style.start || index >= style.end) return;
+            inlineStyleKeys.forEach(function(key) {
+                if (style[key] !== undefined) {
+                    resolved[key] = style[key];
+                }
+            });
+        });
+
+        return resolved;
+    }
+
+    function applyInlineStyle(layer, start, end, patch) {
+        const rangeStart = Math.max(0, parseInt(start, 10) || 0);
+        const rangeEnd = Math.max(rangeStart, parseInt(end, 10) || 0);
+        const nextPatch = {
+            start: rangeStart,
+            end: rangeEnd
+        };
+
+        inlineStyleKeys.forEach(function(key) {
+            if (patch[key] !== undefined) nextPatch[key] = patch[key];
+        });
+
+        if (nextPatch.end <= nextPatch.start) return;
+
+        ensureInlineStyles(layer).push(nextPatch);
+        normalizeInlineStyles(layer);
+    }
+
+    function getSelectionStyleState(layer, start, end) {
+        const selectionStart = Math.max(0, parseInt(start, 10) || 0);
+        const selectionEnd = Math.max(selectionStart, parseInt(end, 10) || 0);
+        const stateForSelection = {};
+
+        inlineStyleKeys.forEach(function(key) {
+            stateForSelection[key] = { mixed: false, value: undefined };
+        });
+
+        if (selectionEnd <= selectionStart) {
+            const base = getResolvedTextStyle(layer, Math.max(0, selectionStart - 1));
+            inlineStyleKeys.forEach(function(key) {
+                stateForSelection[key] = { mixed: false, value: base[key] };
+            });
+            return stateForSelection;
+        }
+
+        for (let i = selectionStart; i < selectionEnd; i++) {
+            const style = getResolvedTextStyle(layer, i);
+            inlineStyleKeys.forEach(function(key) {
+                const current = stateForSelection[key];
+                if (current.value === undefined && !current.mixed) {
+                    current.value = style[key];
+                    return;
+                }
+                if (current.value !== style[key]) {
+                    current.mixed = true;
+                    current.value = undefined;
+                }
+            });
+        }
+
+        return stateForSelection;
+    }
+
+    function syncInlineStylesWithText(layer, nextText) {
+        const previousText = layer.text || '';
+        const styles = ensureInlineStyles(layer);
+        let prefixLength = 0;
+        let oldSuffixLength = 0;
+        const safeNextText = nextText || '';
+
+        if (previousText === safeNextText) return;
+
+        while (
+            prefixLength < previousText.length &&
+            prefixLength < safeNextText.length &&
+            previousText.charAt(prefixLength) === safeNextText.charAt(prefixLength)
+        ) {
+            prefixLength++;
+        }
+
+        while (
+            oldSuffixLength < previousText.length - prefixLength &&
+            oldSuffixLength < safeNextText.length - prefixLength &&
+            previousText.charAt(previousText.length - 1 - oldSuffixLength) === safeNextText.charAt(safeNextText.length - 1 - oldSuffixLength)
+        ) {
+            oldSuffixLength++;
+        }
+
+        const oldChangeEnd = previousText.length - oldSuffixLength;
+        const newChangeEnd = safeNextText.length - oldSuffixLength;
+        const delta = safeNextText.length - previousText.length;
+        const nextStyles = [];
+
+        styles.forEach(function(style) {
+            const current = cloneInlineStyle(style);
+
+            if (current.end <= prefixLength) {
+                nextStyles.push(current);
+                return;
+            }
+
+            if (current.start >= oldChangeEnd) {
+                current.start += delta;
+                current.end += delta;
+                nextStyles.push(current);
+                return;
+            }
+
+            if (current.start < prefixLength && current.end > oldChangeEnd) {
+                current.end += delta;
+                nextStyles.push(current);
+                return;
+            }
+
+            if (current.start < prefixLength && current.end > prefixLength) {
+                current.end = prefixLength;
+                nextStyles.push(current);
+                return;
+            }
+
+            if (current.start < oldChangeEnd && current.end > oldChangeEnd) {
+                current.start = newChangeEnd;
+                current.end += delta;
+                nextStyles.push(current);
+            }
+        });
+
+        layer.inlineStyles = nextStyles;
+        layer.text = safeNextText;
+        normalizeInlineStyles(layer);
+    }
 
     function getActiveLayer() {
         return state.layers.find(layer => layer.id === state.activeLayerId) || state.layers[0];
@@ -157,6 +376,11 @@
         createDefaultLayer,
         getActiveLayer,
         getCanvasDimensions,
+        normalizeInlineStyles,
+        getResolvedTextStyle,
+        applyInlineStyle,
+        getSelectionStyleState,
+        syncInlineStylesWithText,
         saveUndoState,
         undo,
         redo,
