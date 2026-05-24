@@ -8,6 +8,7 @@ O TextFlow permite:
 
 - Escrever e estilizar texto animado com múltiplas camadas
 - Ajustar fonte, cor, alinhamento, velocidade e efeitos
+- Aplicar formatação parcial em letras, palavras ou frases dentro da camada ativa
 - Aplicar gradiente de duas cores ao texto (calculado com base na largura real do texto)
 - **Configurar o atraso de entrada de cada camada** (timeline independente: 0–10s)
 - Aplicar animações com easing configurável
@@ -41,8 +42,8 @@ styles/
   utils.css           # Utilitários CSS locais (substituto do Tailwind CDN)
   main.css            # Estilos globais e componentes visuais
 scripts/
-  state.js            # Estado global, formatos, easing, undo/redo, resetAnimation, áudio
-  render.js           # Renderização do texto e efeitos no canvas (timeline por layer)
+  state.js            # Estado global, seleção ativa, estilos inline, formatos, easing, undo/redo, resetAnimation, áudio
+  render.js           # Renderização do texto e efeitos no canvas (timeline por layer e fragmentos estilizados)
   events.js           # Binding de eventos e atalhos de teclado
   exporter.js         # Fluxo de exportação + mixagem simples de áudio + preview + Web Share API
   main.js             # Bootstrap, loop de animação e orquestração
@@ -63,21 +64,21 @@ icons/
 
 ## Fluxo da Aplicação
 
-1. `state.js` — Expõe `window.TextFlowState` com estado, formatos, áudio, undo/redo e `resetAnimation`.
-2. `render.js` — Expõe `window.TextFlowRender`; cada layer calcula seu próprio `t` a partir de `state.globalTime - layer.startDelay`.
-3. `events.js` — Expõe `window.TextFlowEvents`, conecta UI ao estado.
+1. `state.js` — Expõe `window.TextFlowState` com estado, seleção persistida do editor, estilos inline por intervalo, formatos, áudio, undo/redo e `resetAnimation`.
+2. `render.js` — Expõe `window.TextFlowRender`; cada layer calcula seu próprio `t` a partir de `state.globalTime - layer.startDelay` e desenha fragmentos estilizados no canvas.
+3. `events.js` — Expõe `window.TextFlowEvents`, conecta UI ao estado e aplica formatação parcial na seleção do textarea.
 4. `exporter.js` — Expõe `window.TextFlowExporter`; grava via `MediaRecorder`, mistura a trilha de áudio quando disponível e exibe modal de preview.
-5. `main.js` — Inicializa o app, incrementa `state.globalTime` no loop, sincroniza UI.
+5. `main.js` — Inicializa o app, incrementa `state.globalTime` no loop, sincroniza UI e reflete o estilo da seleção nos controles.
 
 ## Interface do Menu Lateral
 
 | Seção | O que controla |
 | --- | --- |
-| **Texto** | Conteúdo do texto da camada ativa |
+| **Texto** | Conteúdo do texto da camada ativa, com seleção persistida para aplicar formatação parcial |
 | **Velocidade** | Slider de 0.5× a 5× (global) |
 | **Atraso da camada** | Slider de 0s a 10s — delay de entrada da camada ativa |
 | **Alinhamento** | Esquerda, centro, direita |
-| **Fonte** | Família, tamanho, cor, negrito/itálico |
+| **Fonte** | Família, tamanho, cor, negrito/itálico; com seleção ativa, afeta só o trecho selecionado |
 | **Gradiente** | Ativar e configurar 2 cores |
 | **Efeitos** | Sombra, Neon, Contorno, Vazado, Brilho |
 | **Animação** | 9 tipos selecionáveis |
@@ -90,6 +91,17 @@ icons/
 | **Slot** | Seletor de 1 a 5 para salvamento independente |
 | **Salvar / Carregar / Limpar** | Opera no slot selecionado |
 | **Undo / Redo** | Botões no cabeçalho do menu (até 50 estados) |
+
+## Formatação Parcial por Seleção
+
+O editor de texto da camada ativa agora aceita formatação parcial por intervalo.
+
+- Selecione uma letra, palavra ou frase no campo **Texto**.
+- Use os controles de **Fonte** para aplicar família, tamanho, cor, negrito ou itálico apenas naquele trecho.
+- O preview em canvas reflete imediatamente essa formatação parcial.
+- O painel mostra quando a seleção está ativa e sinaliza quando o trecho contém **estilos mistos**.
+- O botão **"Limpar formatação do trecho"** remove apenas os estilos inline da seleção e mantém o estilo base da camada.
+- Sem seleção ativa, os mesmos controles continuam atuando sobre a camada inteira.
 
 ## Timeline Independente por Camada
 
@@ -121,6 +133,8 @@ t_layer = clamp((globalTime - layer.startDelay) / animDuration, 0, 1)
 
 Se houver uma trilha importada ou o áudio do vídeo de fundo estiver selecionado, a exportação incorpora o trecho configurado com volume, fade in e fade out.
 
+O preview usa o mesmo pipeline de renderização da exportação, então a formatação parcial aplicada em letras, palavras ou frases também aparece no vídeo exportado.
+
 > Se o navegador não suportar `MediaRecorder`, o botão "Exportar Vídeo" é desabilitado automaticamente com um aviso explicativo.
 
 O exportador tenta nativamente utilizar **WebCodecs** junto ao pacote **Mp4Muxer** para entregar uma excelente qualidade em formato `.mp4`. Caso o hardware ou o navegador mobile falhe ao codificar, ele faz fallback automático para `MediaRecorder` seguindo os MIME types: `video/mp4` → `video/webm;codecs=vp8,opus` → `video/webm`.
@@ -138,6 +152,8 @@ O exportador tenta nativamente utilizar **WebCodecs** junto ao pacote **Mp4Muxer
 | `Ctrl+B` / `Cmd+B` | Negrito |
 | `Ctrl+I` / `Cmd+I` | Itálico |
 | `Ctrl+E` / `Cmd+E` | Exportar vídeo |
+
+> Com uma seleção ativa no campo de texto, `Ctrl+B` e `Ctrl+I` atuam apenas sobre o trecho selecionado. Sem seleção, continuam alterando a camada inteira.
 
 ## Salvamento Local
 
@@ -176,6 +192,7 @@ Chaves no `localStorage`: `textflow_project_slot1` a `textflow_project_slot5`.
 ## Limitações Conhecidas
 
 - Todas as camadas compartilham a mesma `speed` global — velocidades individuais por layer não estão implementadas.
+- A formatação parcial atual cobre família, tamanho, cor, negrito e itálico; gradiente, efeitos e alinhamento continuam sendo propriedades da camada inteira.
 - Tailwind CDN foi removido; os estilos utilitários locais (`utils.css`) cobrem todas as classes usadas, mas não suportam JIT dinâmico.
 - O modal de preview usa o mesmo blob que a exportação — em dispositivos com pouca memória, vídeos longos podem ser lentos para carregar.
 - Fundos importados (imagem ou vídeo) não são salvos nos slots — são blob URLs temporários criados no momento do import.
