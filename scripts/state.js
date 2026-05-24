@@ -199,6 +199,36 @@
         normalizeInlineStyles(layer);
     }
 
+    function clearInlineStylesInRange(layer, start, end) {
+        const rangeStart = Math.max(0, parseInt(start, 10) || 0);
+        const rangeEnd = Math.max(rangeStart, parseInt(end, 10) || 0);
+
+        if (rangeEnd <= rangeStart) return;
+
+        layer.inlineStyles = ensureInlineStyles(layer).reduce(function(nextStyles, style) {
+            if (style.end <= rangeStart || style.start >= rangeEnd) {
+                nextStyles.push(cloneInlineStyle(style));
+                return nextStyles;
+            }
+
+            if (style.start < rangeStart) {
+                const left = cloneInlineStyle(style);
+                left.end = rangeStart;
+                nextStyles.push(left);
+            }
+
+            if (style.end > rangeEnd) {
+                const right = cloneInlineStyle(style);
+                right.start = rangeEnd;
+                nextStyles.push(right);
+            }
+
+            return nextStyles;
+        }, []);
+
+        normalizeInlineStyles(layer);
+    }
+
     function getSelectionStyleState(layer, start, end) {
         const selectionStart = Math.max(0, parseInt(start, 10) || 0);
         const selectionEnd = Math.max(selectionStart, parseInt(end, 10) || 0);
@@ -379,6 +409,7 @@
         normalizeInlineStyles,
         getResolvedTextStyle,
         applyInlineStyle,
+        clearInlineStylesInRange,
         getSelectionStyleState,
         syncInlineStylesWithText,
         saveUndoState,

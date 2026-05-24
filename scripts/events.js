@@ -25,6 +25,7 @@
         } = deps;
         const stateApi = window.TextFlowState || {};
         const applyInlineStyle = stateApi.applyInlineStyle;
+        const clearInlineStylesInRange = stateApi.clearInlineStylesInRange;
         const getSelectionStyleState = stateApi.getSelectionStyleState;
         const syncInlineStylesWithText = stateApi.syncInlineStylesWithText;
 
@@ -73,6 +74,10 @@
             saveUndoState();
             layer[key] = !layer[key];
             document.getElementById(buttonId).classList.toggle('active', layer[key]);
+        }
+
+        function refreshTextSelectionUI() {
+            syncUIFromState();
         }
 
         function hasBackgroundVideoAudio() {
@@ -214,7 +219,8 @@
         document.getElementById('redoBtn').addEventListener('click', redo);
 
         var textInputTimer;
-        document.getElementById('textInput').addEventListener('input', function(e) {
+        var textInput = document.getElementById('textInput');
+        textInput.addEventListener('input', function(e) {
             syncInlineStylesWithText(getActiveLayer(), e.target.value || '');
             var activeLayerText = document.querySelector('.layer-item.active .layer-text');
             if (activeLayerText) {
@@ -222,6 +228,21 @@
             }
             clearTimeout(textInputTimer);
             textInputTimer = setTimeout(saveUndoState, 600);
+            refreshTextSelectionUI();
+        });
+
+        ['select', 'keyup', 'mouseup'].forEach(function(eventName) {
+            textInput.addEventListener(eventName, refreshTextSelectionUI);
+        });
+
+        document.getElementById('clearSelectionFormatting').addEventListener('click', function() {
+            const selection = getTextSelectionRange();
+            if (selection.end <= selection.start || typeof clearInlineStylesInRange !== 'function') return;
+            saveUndoState();
+            clearInlineStylesInRange(getActiveLayer(), selection.start, selection.end);
+            selection.input.focus();
+            selection.input.setSelectionRange(selection.start, selection.end);
+            refreshTextSelectionUI();
         });
 
         document.getElementById('speedControl').addEventListener('input', function(e) {
@@ -269,6 +290,7 @@
             applyStyleToSelection({ fontFamily: e.target.value }, function(layer) {
                 layer.fontFamily = e.target.value;
             });
+            refreshTextSelectionUI();
         });
 
         document.getElementById('fontSize').addEventListener('input', function(e) {
@@ -276,6 +298,7 @@
             applyStyleToSelection({ fontSize: nextSize }, function(layer) {
                 layer.fontSize = nextSize;
             });
+            refreshTextSelectionUI();
         });
 
         document.getElementById('textColor').addEventListener('input', function(e) {
@@ -283,14 +306,17 @@
                 layer.textColor = e.target.value;
             });
             document.getElementById('colorHex').textContent = e.target.value;
+            refreshTextSelectionUI();
         });
 
         document.getElementById('boldToggle').addEventListener('click', function() {
             toggleSelectionBooleanStyle('bold', 'boldToggle');
+            refreshTextSelectionUI();
         });
 
         document.getElementById('italicToggle').addEventListener('click', function() {
             toggleSelectionBooleanStyle('italic', 'italicToggle');
+            refreshTextSelectionUI();
         });
 
         document.getElementById('gradientToggle').addEventListener('click', function(e) {
@@ -767,11 +793,13 @@
                 if (e.key === 'b' || e.key === 'B') {
                     e.preventDefault();
                     toggleSelectionBooleanStyle('bold', 'boldToggle');
+                    refreshTextSelectionUI();
                     return;
                 }
                 if (e.key === 'i' || e.key === 'I') {
                     e.preventDefault();
                     toggleSelectionBooleanStyle('italic', 'italicToggle');
+                    refreshTextSelectionUI();
                     return;
                 }
                 if (e.key === 'e' || e.key === 'E') {

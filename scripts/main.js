@@ -3,6 +3,7 @@
     const { getTotalTextHeight, render } = window.TextFlowRender;
     const { exportVideo } = window.TextFlowExporter;
     const { bindEvents } = window.TextFlowEvents;
+    const { getSelectionStyleState } = window.TextFlowState;
 
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d');
@@ -389,16 +390,89 @@
 
     function syncUIFromState() {
         const layer = getActiveLayer();
-        document.getElementById('textInput').value = layer.text;
-        document.getElementById('fontFamily').value = layer.fontFamily;
-        document.getElementById('fontSize').value = layer.fontSize;
-        document.getElementById('textColor').value = layer.textColor;
-        document.getElementById('colorHex').textContent = layer.textColor;
+        const textInput = document.getElementById('textInput');
+        const fontFamilyEl = document.getElementById('fontFamily');
+        const fontSizeEl = document.getElementById('fontSize');
+        const textColorEl = document.getElementById('textColor');
+        const colorHexEl = document.getElementById('colorHex');
+        const boldToggle = document.getElementById('boldToggle');
+        const italicToggle = document.getElementById('italicToggle');
+        const selectionStatusEl = document.getElementById('selectionStyleStatus');
+        const clearSelectionFormattingBtn = document.getElementById('clearSelectionFormatting');
+        const selectionStart = textInput.selectionStart || 0;
+        const selectionEnd = textInput.selectionEnd || 0;
+        const hasSelection = selectionEnd > selectionStart;
+        const selectionState = typeof getSelectionStyleState === 'function'
+            ? getSelectionStyleState(layer, selectionStart, selectionEnd)
+            : null;
+
+        function setMixedState(el, mixed) {
+            el.classList.toggle('control-mixed', !!mixed);
+        }
+
+        if (textInput.value !== layer.text) {
+            textInput.value = layer.text;
+        }
+
+        if (hasSelection && selectionState) {
+            const hasMixedStyles = selectionState.fontFamily.mixed || selectionState.fontSize.mixed || selectionState.textColor.mixed || selectionState.bold.mixed || selectionState.italic.mixed;
+            const selectedLength = selectionEnd - selectionStart;
+            selectionStatusEl.textContent = hasMixedStyles
+                ? 'Seleção ativa (' + selectedLength + ' caracteres) com estilos mistos.'
+                : 'Seleção ativa (' + selectedLength + ' caracteres) refletida nos controles.';
+            clearSelectionFormattingBtn.disabled = false;
+
+            if (selectionState.fontFamily.mixed) {
+                fontFamilyEl.value = layer.fontFamily;
+                setMixedState(fontFamilyEl, true);
+            } else {
+                fontFamilyEl.value = selectionState.fontFamily.value;
+                setMixedState(fontFamilyEl, false);
+            }
+
+            if (selectionState.fontSize.mixed) {
+                fontSizeEl.value = '';
+                fontSizeEl.placeholder = 'Misto';
+                setMixedState(fontSizeEl, true);
+            } else {
+                fontSizeEl.value = selectionState.fontSize.value;
+                fontSizeEl.placeholder = '';
+                setMixedState(fontSizeEl, false);
+            }
+
+            if (selectionState.textColor.mixed) {
+                textColorEl.value = layer.textColor;
+                colorHexEl.textContent = 'misto';
+                setMixedState(textColorEl, true);
+            } else {
+                textColorEl.value = selectionState.textColor.value;
+                colorHexEl.textContent = selectionState.textColor.value;
+                setMixedState(textColorEl, false);
+            }
+
+            boldToggle.classList.toggle('active', !selectionState.bold.mixed && !!selectionState.bold.value);
+            boldToggle.classList.toggle('mixed', !!selectionState.bold.mixed);
+            italicToggle.classList.toggle('active', !selectionState.italic.mixed && !!selectionState.italic.value);
+            italicToggle.classList.toggle('mixed', !!selectionState.italic.mixed);
+        } else {
+            selectionStatusEl.textContent = 'Sem seleção ativa. Os controles afetam a camada inteira.';
+            clearSelectionFormattingBtn.disabled = true;
+            fontFamilyEl.value = layer.fontFamily;
+            fontSizeEl.value = layer.fontSize;
+            fontSizeEl.placeholder = '';
+            textColorEl.value = layer.textColor;
+            colorHexEl.textContent = layer.textColor;
+            setMixedState(fontFamilyEl, false);
+            setMixedState(fontSizeEl, false);
+            setMixedState(textColorEl, false);
+            boldToggle.classList.toggle('active', layer.bold);
+            boldToggle.classList.remove('mixed');
+            italicToggle.classList.toggle('active', layer.italic);
+            italicToggle.classList.remove('mixed');
+        }
+
         document.getElementById('speedControl').value = state.speed;
         document.getElementById('speedValue').textContent = state.speed + 'x';
-
-        document.getElementById('boldToggle').classList.toggle('active', layer.bold);
-        document.getElementById('italicToggle').classList.toggle('active', layer.italic);
 
         document.getElementById('effectType').value = layer.effect;
         document.getElementById('effectOptions').style.display = layer.effect === 'none' ? 'none' : 'block';
