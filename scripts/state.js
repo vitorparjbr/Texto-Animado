@@ -72,6 +72,9 @@
         isPlaying: true,
         globalTime: 0,
         lastTime: 0,
+        textSelectionStart: 0,
+        textSelectionEnd: 0,
+        textSelectionLayerId: 1,
         animationId: null
     };
 

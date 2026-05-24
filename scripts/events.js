@@ -29,12 +29,22 @@
         const getSelectionStyleState = stateApi.getSelectionStyleState;
         const syncInlineStylesWithText = stateApi.syncInlineStylesWithText;
 
+        function setStoredTextSelection(start, end) {
+            state.textSelectionStart = Math.max(0, parseInt(start, 10) || 0);
+            state.textSelectionEnd = Math.max(state.textSelectionStart, parseInt(end, 10) || 0);
+            state.textSelectionLayerId = getActiveLayer().id;
+        }
+
         function getTextSelectionRange() {
             const input = document.getElementById('textInput');
+            const activeLayer = getActiveLayer();
+            const isTextareaFocused = document.activeElement === input;
+            const start = isTextareaFocused ? (input.selectionStart || 0) : (state.textSelectionLayerId === activeLayer.id ? (state.textSelectionStart || 0) : 0);
+            const end = isTextareaFocused ? (input.selectionEnd || 0) : (state.textSelectionLayerId === activeLayer.id ? (state.textSelectionEnd || 0) : 0);
             return {
                 input: input,
-                start: input.selectionStart || 0,
-                end: input.selectionEnd || 0
+                start: start,
+                end: end
             };
         }
 
@@ -44,6 +54,7 @@
             if (selection.end > selection.start && typeof applyInlineStyle === 'function') {
                 saveUndoState();
                 applyInlineStyle(layer, selection.start, selection.end, patch);
+                setStoredTextSelection(selection.start, selection.end);
                 selection.input.focus();
                 selection.input.setSelectionRange(selection.start, selection.end);
                 return true;
@@ -66,6 +77,7 @@
                 const patch = {};
                 patch[key] = nextValue;
                 applyInlineStyle(layer, selection.start, selection.end, patch);
+                setStoredTextSelection(selection.start, selection.end);
                 selection.input.focus();
                 selection.input.setSelectionRange(selection.start, selection.end);
                 return;
@@ -78,6 +90,11 @@
 
         function refreshTextSelectionUI() {
             syncUIFromState();
+        }
+
+        function captureTextareaSelection() {
+            setStoredTextSelection(textInput.selectionStart || 0, textInput.selectionEnd || 0);
+            refreshTextSelectionUI();
         }
 
         function hasBackgroundVideoAudio() {
@@ -222,6 +239,7 @@
         var textInput = document.getElementById('textInput');
         textInput.addEventListener('input', function(e) {
             syncInlineStylesWithText(getActiveLayer(), e.target.value || '');
+            setStoredTextSelection(e.target.selectionStart || 0, e.target.selectionEnd || 0);
             var activeLayerText = document.querySelector('.layer-item.active .layer-text');
             if (activeLayerText) {
                 activeLayerText.textContent = e.target.value || '(vazio)';
@@ -231,8 +249,8 @@
             refreshTextSelectionUI();
         });
 
-        ['select', 'keyup', 'mouseup'].forEach(function(eventName) {
-            textInput.addEventListener(eventName, refreshTextSelectionUI);
+        ['select', 'keyup', 'mouseup', 'focus'].forEach(function(eventName) {
+            textInput.addEventListener(eventName, captureTextareaSelection);
         });
 
         document.getElementById('clearSelectionFormatting').addEventListener('click', function() {
@@ -240,6 +258,7 @@
             if (selection.end <= selection.start || typeof clearInlineStylesInRange !== 'function') return;
             saveUndoState();
             clearInlineStylesInRange(getActiveLayer(), selection.start, selection.end);
+            setStoredTextSelection(selection.start, selection.end);
             selection.input.focus();
             selection.input.setSelectionRange(selection.start, selection.end);
             refreshTextSelectionUI();
@@ -664,6 +683,7 @@
             newLayer.text = 'Nova camada';
             state.layers.push(newLayer);
             state.activeLayerId = newLayer.id;
+            setStoredTextSelection(0, 0);
             syncUIFromState();
         });
 

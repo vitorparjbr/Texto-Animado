@@ -399,8 +399,9 @@
         const italicToggle = document.getElementById('italicToggle');
         const selectionStatusEl = document.getElementById('selectionStyleStatus');
         const clearSelectionFormattingBtn = document.getElementById('clearSelectionFormatting');
-        const selectionStart = textInput.selectionStart || 0;
-        const selectionEnd = textInput.selectionEnd || 0;
+        const selectionBelongsToLayer = state.textSelectionLayerId === layer.id;
+        const selectionStart = selectionBelongsToLayer ? (state.textSelectionStart || 0) : 0;
+        const selectionEnd = selectionBelongsToLayer ? (state.textSelectionEnd || 0) : 0;
         const hasSelection = selectionEnd > selectionStart;
         const selectionState = typeof getSelectionStyleState === 'function'
             ? getSelectionStyleState(layer, selectionStart, selectionEnd)
@@ -412,6 +413,10 @@
 
         if (textInput.value !== layer.text) {
             textInput.value = layer.text;
+        }
+
+        if (document.activeElement === textInput && selectionBelongsToLayer) {
+            textInput.setSelectionRange(selectionStart, selectionEnd);
         }
 
         if (hasSelection && selectionState) {
