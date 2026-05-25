@@ -136,7 +136,7 @@
 
         function commitLine(forceEmpty) {
             if (!currentLine.fragments.length && !forceEmpty && lines.length) return;
-            if (!currentLine.fragments.length && !forceEmpty && !lines.length) {
+            if (!currentLine.fragments.length) {
                 currentLine.height = Math.max(1, layer.fontSize * 1.3);
             }
             lines.push(currentLine);
