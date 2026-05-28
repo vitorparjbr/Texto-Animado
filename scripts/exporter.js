@@ -172,6 +172,48 @@
         const videoBg = document.getElementById('videoBg');
         const imageBg = document.getElementById('imageBg');
 
+        // No mobile, imagens carregadas via blob URL (file input) podem "tainter" o canvas
+        // de forma que o VideoEncoder trava silenciosamente ao tentar criar VideoFrames.
+        // Para evitar isso, pré-decodificamos a imagem em um ImageBitmap e usamos um
+        // canvas offscreen dedicado para a exportação. O ImageBitmap é uma representação
+        // GPU-friendly que não sofre das restrições de segurança do blob URL original.
+        let exportImageBg = imageBg;
+        let exportImageBitmap = null;
+        if (state.mediaType === 'image' && imageBg.src && imageBg.complete && imageBg.naturalWidth > 0) {
+            try {
+                if (typeof createImageBitmap === 'function') {
+                    // Se o imageBg veio de um blob URL (file input do armazenamento),
+                    // recriamos a partir do File original para garantir que o bitmap
+                    // não carregue restrições de segurança do elemento <img>.
+                    if (state.mediaFile && state.mediaFile instanceof Blob) {
+                        exportImageBitmap = await createImageBitmap(state.mediaFile);
+                    } else {
+                        exportImageBitmap = await createImageBitmap(imageBg);
+                    }
+                    // Cria um <img> virtual com o bitmap pré-renderizado em um canvas auxiliar
+                    // para manter compatibilidade com a função render() existente.
+                    var bitmapCanvas = document.createElement('canvas');
+                    bitmapCanvas.width = exportImageBitmap.width;
+                    bitmapCanvas.height = exportImageBitmap.height;
+                    bitmapCanvas.getContext('2d').drawImage(exportImageBitmap, 0, 0);
+                    // Usamos o canvas como fonte — funciona com drawImage e não é "tainted"
+                    exportImageBg = bitmapCanvas;
+                    exportImageBg.complete = true; // Para o check no render()
+                    exportImageBg.src = 'bitmap'; // Para o check imageBg.src no render()
+                }
+            } catch (bitmapErr) {
+                console.warn('Failed to pre-decode image for export, using original:', bitmapErr);
+                // Continua com o imageBg original
+            }
+        }
+
+        // Canvas offscreen dedicado para exportação — evita interferência com o canvas
+        // principal e problemas de taint no mobile.
+        const exportCanvas = document.createElement('canvas');
+        exportCanvas.width = canvas.width;
+        exportCanvas.height = canvas.height;
+        const exportCtx = exportCanvas.getContext('2d');
+
         const muxer = new Mp4Muxer.Muxer({
             target: new Mp4Muxer.ArrayBufferTarget(),
             video: { codec: 'avc', width: canvas.width, height: canvas.height },
@@ -225,11 +267,12 @@
                 });
             }
 
-            render(canvas.getContext('2d'), canvas, state, videoBg, imageBg, easings);
+            // Renderiza no canvas offscreen usando o imageBg pré-decodificado
+            render(exportCtx, exportCanvas, state, videoBg, exportImageBg, easings);
             
             if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
 
-            const frame = new VideoFrame(canvas, { timestamp: (i / 30) * 1000000 });
+            const frame = new VideoFrame(exportCanvas, { timestamp: (i / 30) * 1000000 });
             videoEncoder.encode(frame, { keyFrame: i % 30 === 0 });
             frame.close();
 
@@ -238,9 +281,21 @@
                 statusEl.textContent = 'Renderizando Vídeo (' + Math.floor((i / totalFrames) * 100) + '%)...';
             }
 
+            // Aguarda a fila do encoder diminuir, com timeout de segurança para evitar
+            // travamento infinito no mobile caso o encoder pare de processar frames.
+            var queueWaitStart = Date.now();
             while (videoEncoder.encodeQueueSize > 10) {
                 await new Promise(r => setTimeout(r, 5));
+                if (Date.now() - queueWaitStart > 8000) {
+                    throw new Error('VideoEncoder travou: fila de encode não está sendo processada (mobile).');
+                }
             }
+        }
+
+        // Limpa o ImageBitmap para liberar memória GPU
+        if (exportImageBitmap) {
+            exportImageBitmap.close();
+            exportImageBitmap = null;
         }
 
         await videoEncoder.flush();
@@ -522,7 +577,7 @@
     }
 
     async function exportVideo(deps) {
-        const { canvas, state, getTotalTextHeight, getAudioTrimStart, getAudioTrimEnd, updatePlayPauseUI, showToast } = deps;
+        const { canvas, state, getTotalTextHeight, getAudioTrimStart, getAudioTrimEnd, updatePlayPauseUI, resetAnimation, showToast } = deps;
         const statusEl = document.getElementById('exportStatus');
         const exportBtn = document.getElementById('exportBtn');
         const recordingBadge = document.getElementById('recordingBadge');
@@ -572,6 +627,7 @@
                     showToast('Usando método alternativo para exportar...', 'info');
                     blob = null;
                     // Reseta o estado de animação para o MediaRecorder começar do zero
+                    progressBar.style.width = '0%';
                     resetAnimation();
                     state.isPlaying = false;
                 }
