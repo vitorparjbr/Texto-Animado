@@ -173,20 +173,21 @@
         var mediaRecorderSupported = typeof MediaRecorder !== 'undefined' && (
             MediaRecorder.isTypeSupported('video/webm') || MediaRecorder.isTypeSupported('video/mp4')
         );
-        var canExport = mediaRecorderSupported && !(activeAudioMode === 'imported' && state.audioIsDecoding) && isAudioReadyForExport();
+        var webCodecsSupported = typeof window.VideoEncoder !== 'undefined' && !!window.Mp4Muxer;
+        var hasExportEngine = mediaRecorderSupported || webCodecsSupported;
+        var canExport = hasExportEngine && !(activeAudioMode === 'imported' && state.audioIsDecoding) && isAudioReadyForExport();
 
         exportBtn.disabled = !canExport;
-        if (mediaRecorderSupported && !canExport && activeAudioMode === 'imported' && state.audioIsDecoding) {
+        if (hasExportEngine && !canExport && activeAudioMode === 'imported' && state.audioIsDecoding) {
             exportHint.textContent = 'Aguarde o audio terminar de processar para exportar.';
             exportHint.style.display = 'block';
-        } else if (mediaRecorderSupported && !canExport && activeAudioMode === 'backgroundVideo') {
+        } else if (hasExportEngine && !canExport && activeAudioMode === 'backgroundVideo') {
             exportHint.textContent = 'Aguarde o video de fundo carregar para usar o audio dele na exportacao.';
             exportHint.style.display = 'block';
+        } else if (!hasExportEngine) {
+            exportHint.textContent = 'Este navegador nao suporta a exportacao de video neste dispositivo.';
+            exportHint.style.display = 'block';
         } else {
-            exportHint.style.display = 'none';
-        }
-
-        if (!mediaRecorderSupported) {
             exportHint.style.display = 'none';
         }
     }
