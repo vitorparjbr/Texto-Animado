@@ -57,6 +57,12 @@
         return 'none';
     }
 
+    function shouldBypassWebCodecsForImageExport(state) {
+        const userAgentData = navigator.userAgentData;
+        const isMobile = !!(userAgentData && userAgentData.mobile) || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '');
+        return isMobile && state.mediaType === 'image' && !!state.mediaSource;
+    }
+
     // --- WebCodecs (Offline) Methods ---
 
     async function renderOfflineAudioBuffer(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec) {
@@ -615,7 +621,7 @@
             let ext2;
 
             // Tenta WebCodecs (MP4 nativo, melhor qualidade)
-            if (typeof window.VideoEncoder !== 'undefined' && window.Mp4Muxer) {
+            if (!shouldBypassWebCodecsForImageExport(state) && typeof window.VideoEncoder !== 'undefined' && window.Mp4Muxer) {
                 try {
                     console.log('Using WebCodecs for export');
                     ext2 = 'mp4';
@@ -631,6 +637,9 @@
                     resetAnimation();
                     state.isPlaying = false;
                 }
+            } else if (shouldBypassWebCodecsForImageExport(state)) {
+                console.log('Skipping WebCodecs for image export on mobile');
+                showToast('Usando modo compatível para exportar imagem no celular...', 'info');
             }
 
             // Fallback: MediaRecorder (grava em tempo real)
