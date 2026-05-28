@@ -63,6 +63,59 @@
         return isMobile && state.mediaType === 'image' && !!state.mediaSource;
     }
 
+    function createExportAbortError() {
+        const error = new Error('Exportação cancelada.');
+        error.name = 'AbortError';
+        return error;
+    }
+
+    function throwIfExportCancelled(exportController) {
+        if (exportController && exportController.cancelled) {
+            throw createExportAbortError();
+        }
+    }
+
+    function getExportVideoBitrate(width, height) {
+        return Math.max(5000000, Math.min(12000000, Math.round(width * height * 8)));
+    }
+
+    async function createExportImageSource(state, imageBg) {
+        let exportImageBg = imageBg;
+        let exportImageBitmap = null;
+
+        if (state.mediaType === 'image' && imageBg.src && imageBg.complete && imageBg.naturalWidth > 0) {
+            try {
+                if (typeof createImageBitmap === 'function') {
+                    if (state.mediaFile && state.mediaFile instanceof Blob) {
+                        exportImageBitmap = await createImageBitmap(state.mediaFile);
+                    } else {
+                        exportImageBitmap = await createImageBitmap(imageBg);
+                    }
+
+                    var bitmapCanvas = document.createElement('canvas');
+                    bitmapCanvas.width = exportImageBitmap.width;
+                    bitmapCanvas.height = exportImageBitmap.height;
+                    var bitmapCtx = bitmapCanvas.getContext('2d');
+                    if (bitmapCtx) {
+                        bitmapCtx.imageSmoothingEnabled = true;
+                        if ('imageSmoothingQuality' in bitmapCtx) bitmapCtx.imageSmoothingQuality = 'high';
+                        bitmapCtx.drawImage(exportImageBitmap, 0, 0);
+                    }
+                    exportImageBg = bitmapCanvas;
+                    exportImageBg.complete = true;
+                    exportImageBg.src = 'bitmap';
+                }
+            } catch (bitmapErr) {
+                console.warn('Failed to pre-decode image for export, using original:', bitmapErr);
+            }
+        }
+
+        return {
+            source: exportImageBg,
+            bitmap: exportImageBitmap
+        };
+    }
+
     // --- WebCodecs (Offline) Methods ---
 
     async function renderOfflineAudioBuffer(state, getAudioTrimStart, getAudioTrimEnd, totalDurationSec) {
@@ -170,48 +223,17 @@
     }
 
         async function exportVideoWebCodecs(deps, duration, activeAudioMode, exportStartMs, baseDuration) {
-        const { canvas, state, getAudioTrimStart, getAudioTrimEnd, resetAnimation, showToast } = deps;
+            const { canvas, state, getAudioTrimStart, getAudioTrimEnd, resetAnimation, showToast, exportController } = deps;
         const statusEl = document.getElementById('exportStatus');
         const progressBar = document.getElementById('progressBar');
         const { render } = window.TextFlowRender;
         const easings = window.TextFlowState.easings;
         const videoBg = document.getElementById('videoBg');
         const imageBg = document.getElementById('imageBg');
-
-        // No mobile, imagens carregadas via blob URL (file input) podem "tainter" o canvas
-        // de forma que o VideoEncoder trava silenciosamente ao tentar criar VideoFrames.
-        // Para evitar isso, pré-decodificamos a imagem em um ImageBitmap e usamos um
-        // canvas offscreen dedicado para a exportação. O ImageBitmap é uma representação
-        // GPU-friendly que não sofre das restrições de segurança do blob URL original.
-        let exportImageBg = imageBg;
-        let exportImageBitmap = null;
-        if (state.mediaType === 'image' && imageBg.src && imageBg.complete && imageBg.naturalWidth > 0) {
-            try {
-                if (typeof createImageBitmap === 'function') {
-                    // Se o imageBg veio de um blob URL (file input do armazenamento),
-                    // recriamos a partir do File original para garantir que o bitmap
-                    // não carregue restrições de segurança do elemento <img>.
-                    if (state.mediaFile && state.mediaFile instanceof Blob) {
-                        exportImageBitmap = await createImageBitmap(state.mediaFile);
-                    } else {
-                        exportImageBitmap = await createImageBitmap(imageBg);
-                    }
-                    // Cria um <img> virtual com o bitmap pré-renderizado em um canvas auxiliar
-                    // para manter compatibilidade com a função render() existente.
-                    var bitmapCanvas = document.createElement('canvas');
-                    bitmapCanvas.width = exportImageBitmap.width;
-                    bitmapCanvas.height = exportImageBitmap.height;
-                    bitmapCanvas.getContext('2d').drawImage(exportImageBitmap, 0, 0);
-                    // Usamos o canvas como fonte — funciona com drawImage e não é "tainted"
-                    exportImageBg = bitmapCanvas;
-                    exportImageBg.complete = true; // Para o check no render()
-                    exportImageBg.src = 'bitmap'; // Para o check imageBg.src no render()
-                }
-            } catch (bitmapErr) {
-                console.warn('Failed to pre-decode image for export, using original:', bitmapErr);
-                // Continua com o imageBg original
-            }
-        }
+            const imageExportAsset = await createExportImageSource(state, imageBg);
+            let exportImageBg = imageExportAsset.source;
+            let exportImageBitmap = imageExportAsset.bitmap;
+            throwIfExportCancelled(exportController);
 
         // Canvas offscreen dedicado para exportação — evita interferência com o canvas
         // principal e problemas de taint no mobile.
@@ -219,6 +241,10 @@
         exportCanvas.width = canvas.width;
         exportCanvas.height = canvas.height;
         const exportCtx = exportCanvas.getContext('2d');
+            if (exportCtx) {
+                exportCtx.imageSmoothingEnabled = true;
+                if ('imageSmoothingQuality' in exportCtx) exportCtx.imageSmoothingQuality = 'high';
+            }
 
         const muxer = new Mp4Muxer.Muxer({
             target: new Mp4Muxer.ArrayBufferTarget(),
@@ -238,7 +264,7 @@
             codec: 'avc1.4D401F',
             width: canvas.width,
             height: canvas.height,
-            bitrate: 5000000,
+            bitrate: getExportVideoBitrate(canvas.width, canvas.height),
             framerate: 30
         });
 
@@ -249,6 +275,7 @@
         let videoError = null;
 
         for (let i = 0; i < totalFrames; i++) {
+            throwIfExportCancelled(exportController);
             if (videoError) throw videoError;
             state.globalTime = (exportStartMs / 1000) + (i / 30);
 
@@ -277,6 +304,7 @@
             render(exportCtx, exportCanvas, state, videoBg, exportImageBg, easings);
             
             if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
+            throwIfExportCancelled(exportController);
 
             const frame = new VideoFrame(exportCanvas, { timestamp: (i / 30) * 1000000 });
             videoEncoder.encode(frame, { keyFrame: i % 30 === 0 });
@@ -292,6 +320,7 @@
             var queueWaitStart = Date.now();
             while (videoEncoder.encodeQueueSize > 10) {
                 await new Promise(r => setTimeout(r, 5));
+                throwIfExportCancelled(exportController);
                 if (Date.now() - queueWaitStart > 8000) {
                     throw new Error('VideoEncoder travou: fila de encode não está sendo processada (mobile).');
                 }
@@ -305,6 +334,7 @@
         }
 
         await videoEncoder.flush();
+        throwIfExportCancelled(exportController);
         // Verifica se houve erro silencioso no VideoEncoder após o flush
         if (videoError) throw videoError;
 
@@ -312,6 +342,7 @@
             statusEl.textContent = 'Processando Áudio...';
             progressBar.style.width = '85%';
             try {
+                throwIfExportCancelled(exportController);
                 let audioBuffer = await renderOfflineAudioBuffer(state, getAudioTrimStart, getAudioTrimEnd, baseDuration / 1000);
                 if (audioBuffer && exportStartMs > 0) {
                     const sampleRate = audioBuffer.sampleRate;
@@ -342,9 +373,11 @@
                     audioEncoder.configure({ codec: 'mp4a.40.2', numberOfChannels: 2, sampleRate: 44100, bitrate: 128000 });
                     progressBar.style.width = '90%';
                     await encodeAudioBuffer(audioBuffer, audioEncoder);
+                    throwIfExportCancelled(exportController);
                     if (audioEncodeError) throw audioEncodeError;
                 }
             } catch (err) {
+                if (err && err.name === 'AbortError') throw err;
                 console.error("Audio WebCodecs error:", err);
                 showToast('Aviso: Ocorreu um erro ao processar o áudio, o vídeo sairá mudo.', 'info');
             }
@@ -516,13 +549,42 @@
     }
 
     async function exportVideoMediaRecorder(deps, mimeType, ext, duration, activeAudioMode, exportStartMs, baseDuration) {
-        const { canvas, state, getAudioTrimStart, getAudioTrimEnd, resetAnimation, updatePlayPauseUI } = deps;
+        const { canvas, state, getAudioTrimStart, getAudioTrimEnd, resetAnimation, updatePlayPauseUI, exportController } = deps;
         const statusEl = document.getElementById('exportStatus');
         const progressBar = document.getElementById('progressBar');
+        const { render } = window.TextFlowRender;
+        const easings = window.TextFlowState.easings;
+        const videoBg = document.getElementById('videoBg');
+        const imageBg = document.getElementById('imageBg');
 
-        const canvasStream = canvas.captureStream(30);
+        const useDedicatedRecorderCanvas = state.mediaType !== 'video';
+        let imageExportAsset = null;
+        let renderCanvas = canvas;
+        let renderCtx = null;
+        let renderImageBg = imageBg;
+
+        if (useDedicatedRecorderCanvas) {
+            renderCanvas = document.createElement('canvas');
+            renderCanvas.width = canvas.width;
+            renderCanvas.height = canvas.height;
+            renderCtx = renderCanvas.getContext('2d');
+            if (renderCtx) {
+                renderCtx.imageSmoothingEnabled = true;
+                if ('imageSmoothingQuality' in renderCtx) renderCtx.imageSmoothingQuality = 'high';
+            }
+
+            imageExportAsset = await createExportImageSource(state, imageBg);
+            renderImageBg = imageExportAsset.source;
+            throwIfExportCancelled(exportController);
+        }
+
+        const canvasStream = renderCanvas.captureStream(30);
         let audioExport = null;
         let streamTracks = canvasStream.getVideoTracks().slice();
+        let renderInterval = null;
+        let progressInterval = null;
+        let stopTimeout = null;
+        let recordingStopped = false;
 
         const totalDurationSec = duration / 1000;
         const exportStartSec = exportStartMs / 1000;
@@ -538,46 +600,114 @@
         }
 
         const stream = new MediaStream(streamTracks);
-        const mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 5000000 });
+        const mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: getExportVideoBitrate(renderCanvas.width, renderCanvas.height) });
         const chunks = [];
+
+        function cleanupRecorderResources() {
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+            if (renderInterval) {
+                clearInterval(renderInterval);
+                renderInterval = null;
+            }
+            if (stopTimeout) {
+                clearTimeout(stopTimeout);
+                stopTimeout = null;
+            }
+            stream.getTracks().forEach(function(track) {
+                try { track.stop(); } catch (e) {}
+            });
+            if (audioExport) audioExport.cleanup();
+            if (imageExportAsset && imageExportAsset.bitmap) {
+                imageExportAsset.bitmap.close();
+                imageExportAsset.bitmap = null;
+            }
+        }
+
+        function stopRecorder() {
+            if (recordingStopped) return;
+            recordingStopped = true;
+            if (mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+        }
         
         mediaRecorder.ondataavailable = function(e) {
             if (e.data && e.data.size > 0) chunks.push(e.data);
         };
 
-        const blobPromise = new Promise(function(resolve) {
+        const blobPromise = new Promise(function(resolve, reject) {
             mediaRecorder.onstop = function() {
+                cleanupRecorderResources();
+                if (exportController && exportController.cancelled) {
+                    reject(createExportAbortError());
+                    return;
+                }
                 resolve(new Blob(chunks, { type: mimeType }));
             };
+
+            mediaRecorder.onerror = function(event) {
+                cleanupRecorderResources();
+                reject((event && event.error) || new Error('Falha ao gravar o vídeo.'));
+            };
         });
+
+        throwIfExportCancelled(exportController);
+
+        if (useDedicatedRecorderCanvas && renderCtx) {
+            state.globalTime = exportStartMs / 1000;
+            render(renderCtx, renderCanvas, state, videoBg, renderImageBg, easings);
+        }
 
         mediaRecorder.start();
         statusEl.textContent = 'Gravando (~' + Math.ceil(duration / 1000) + 's)...';
 
         resetAnimation();
-        state.globalTime = exportStartMs;
-        state.isPlaying = true;
+        state.globalTime = exportStartMs / 1000;
+        state.isPlaying = !useDedicatedRecorderCanvas;
         updatePlayPauseUI();
 
         const startTime = Date.now();
-        const progressInterval = setInterval(function() {
+        progressInterval = setInterval(function() {
             const elapsed = Date.now() - startTime;
             progressBar.style.width = Math.min((elapsed / duration) * 100, 100) + '%';
+            if (exportController && exportController.cancelled) {
+                stopRecorder();
+            }
         }, 100);
 
-        await new Promise(function(resolve) {
-            setTimeout(function() {
-                clearInterval(progressInterval);
-                mediaRecorder.stop();
-                resolve();
-            }, duration);
-        });
+        if (useDedicatedRecorderCanvas && renderCtx) {
+            const frameDuration = 1000 / 30;
+            renderInterval = setInterval(function() {
+                if (exportController && exportController.cancelled) {
+                    stopRecorder();
+                    return;
+                }
+
+                const elapsed = Math.min(Date.now() - startTime, duration);
+                state.globalTime = (exportStartMs / 1000) + (elapsed / 1000);
+                render(renderCtx, renderCanvas, state, videoBg, renderImageBg, easings);
+
+                if (elapsed >= duration) {
+                    stopRecorder();
+                }
+            }, frameDuration);
+        }
+
+        stopTimeout = setTimeout(function() {
+            if (useDedicatedRecorderCanvas && renderCtx) {
+                state.globalTime = (exportStartMs / 1000) + (duration / 1000);
+                render(renderCtx, renderCanvas, state, videoBg, renderImageBg, easings);
+            }
+            stopRecorder();
+        }, duration);
 
         statusEl.textContent = 'Processando vídeo...';
         progressBar.style.width = '100%';
 
         const blob = await blobPromise;
-        if (audioExport) audioExport.cleanup();
 
         return blob;
     }
@@ -589,6 +719,7 @@
         const recordingBadge = document.getElementById('recordingBadge');
         const progressContainer = document.getElementById('progressContainer');
         const progressBar = document.getElementById('progressBar');
+        const cancelExportBtn = document.getElementById('cancelExportBtn');
 
         statusEl.style.display = 'block';
         progressContainer.style.display = 'block';
@@ -596,9 +727,26 @@
         exportBtn.disabled = true;
         recordingBadge.style.display = 'inline-block';
 
+        const exportController = {
+            cancelled: false,
+            cancel: function() {
+                if (this.cancelled) return;
+                this.cancelled = true;
+                statusEl.textContent = 'Cancelando exportação...';
+            }
+        };
+
+        if (cancelExportBtn) {
+            cancelExportBtn.classList.remove('hidden');
+            cancelExportBtn.onclick = function() {
+                exportController.cancel();
+            };
+        }
+
         const startGlobalTime = state.globalTime;
         const wasPlaying = state.isPlaying;
         state.isExporting = true;
+        const exportDeps = Object.assign({}, deps, { exportController: exportController });
 
         try {
             const activeAudioMode = getActiveAudioMode(state);
@@ -625,8 +773,11 @@
                 try {
                     console.log('Using WebCodecs for export');
                     ext2 = 'mp4';
-                    blob = await exportVideoWebCodecs(deps, duration, activeAudioMode, exportStartMs, baseDuration);
+                    blob = await exportVideoWebCodecs(exportDeps, duration, activeAudioMode, exportStartMs, baseDuration);
                 } catch (webCodecsErr) {
+                    if (webCodecsErr && webCodecsErr.name === 'AbortError') {
+                        throw webCodecsErr;
+                    }
                     // No mobile, o VideoEncoder pode falhar por codec não suportado,
                     // GPU ocupada, ou outros erros de hardware. Faz fallback para MediaRecorder.
                     console.warn('WebCodecs export failed, falling back to MediaRecorder:', webCodecsErr);
@@ -653,7 +804,7 @@
                 if (!mimeType) throw new Error('Sem suporte a codecs de vídeo.');
 
                 ext2 = mimeType.indexOf('mp4') >= 0 ? 'mp4' : 'webm';
-                blob = await exportVideoMediaRecorder(deps, mimeType, ext2, duration, activeAudioMode, exportStartMs, baseDuration);
+                blob = await exportVideoMediaRecorder(exportDeps, mimeType, ext2, duration, activeAudioMode, exportStartMs, baseDuration);
             }
 
             // Restore state
@@ -715,14 +866,25 @@
             state.globalTime = startGlobalTime;
             state.isPlaying = wasPlaying;
             updatePlayPauseUI();
-            console.error('Export error:', error);
-            statusEl.textContent = error.message || 'Erro na exportação. Tente novamente.';
-            showToast('Erro na exportação', 'error');
-            progressContainer.style.display = 'none';
+            if (error && error.name === 'AbortError') {
+                statusEl.style.display = 'none';
+                progressContainer.style.display = 'none';
+                progressBar.style.width = '0%';
+                showToast('Exportação cancelada', 'info');
+            } else {
+                console.error('Export error:', error);
+                statusEl.textContent = error.message || 'Erro na exportação. Tente novamente.';
+                showToast('Erro na exportação', 'error');
+                progressContainer.style.display = 'none';
+            }
         }
 
         exportBtn.disabled = false;
         recordingBadge.style.display = 'none';
+        if (cancelExportBtn) {
+            cancelExportBtn.classList.add('hidden');
+            cancelExportBtn.onclick = null;
+        }
     }
 
     window.TextFlowExporter = {
