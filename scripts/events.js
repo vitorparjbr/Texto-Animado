@@ -606,6 +606,13 @@
             syncPreviewAudio(false);
         });
 
+        document.getElementById('audioLoop').addEventListener('change', function(e) {
+            saveUndoState();
+            state.audioLoop = !!e.target.checked;
+            resetAnimation();
+            syncUIFromState();
+        });
+
         document.getElementById('audioTrimStart').addEventListener('change', function(e) {
             saveUndoState();
             state.audioTrimStart = clampAudioValue(e.target.value, 0);
@@ -713,7 +720,8 @@
                 bgColor: state.bgColor,
                 exportTrimActive: state.exportTrimActive,
                 exportTrimStart: state.exportTrimStart,
-                exportTrimEnd: state.exportTrimEnd
+                exportTrimEnd: state.exportTrimEnd,
+                audioLoop: state.audioLoop
             };
 
             try {
@@ -772,6 +780,7 @@
                 state.audioFadeIn = 0;
                 state.audioFadeOut = 0;
                 state.audioVolume = 1;
+                state.audioLoop = data.audioLoop !== undefined ? data.audioLoop : true;
 
                 initCanvas();
                 syncUIFromState();

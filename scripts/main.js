@@ -204,9 +204,11 @@
         trimStart = getAudioTrimStart();
         trimEnd = getAudioTrimEnd();
         const bgClipDuration = Math.max(0, trimEnd - trimStart);
-        // Loop the background video audio in preview when globalTime exceeds the clip
-        const bgLoopedOffset = bgClipDuration > 0 ? (state.globalTime % bgClipDuration) : state.globalTime;
-        targetTime = trimStart + bgLoopedOffset;
+        // Loop the background video audio in preview when globalTime exceeds the clip, unless loop is disabled
+        const bgLoopedOffset = (state.audioLoop !== false && bgClipDuration > 0)
+            ? (state.globalTime % bgClipDuration)
+            : state.globalTime;
+        targetTime = Math.min(trimEnd, trimStart + bgLoopedOffset);
 
         if (
             forceSeek ||
@@ -244,9 +246,11 @@
         const trimStart = getAudioTrimStart();
         const trimEnd = getAudioTrimEnd();
         const clipDuration = Math.max(0, trimEnd - trimStart);
-        // Loop the audio in preview: when globalTime exceeds the clip, wrap it around
-        const loopedOffset = clipDuration > 0 ? (state.globalTime % clipDuration) : state.globalTime;
-        const targetTime = trimStart + loopedOffset;
+        // Loop the audio in preview: when globalTime exceeds the clip, wrap it around, unless loop is disabled
+        const loopedOffset = (state.audioLoop !== false && clipDuration > 0)
+            ? (state.globalTime % clipDuration)
+            : state.globalTime;
+        const targetTime = Math.min(trimEnd, trimStart + loopedOffset);
 
         applyAudioVolume();
 
@@ -538,6 +542,7 @@
             }
             document.getElementById('audioVolume').value = state.audioVolume;
             document.getElementById('audioVolumeValue').textContent = Math.round(state.audioVolume * 100) + '%';
+            document.getElementById('audioLoop').checked = state.audioLoop !== false;
             document.getElementById('audioTrimStart').value = trimStart.toFixed(1);
             document.getElementById('audioTrimEnd').value = trimEnd.toFixed(1);
             document.getElementById('audioFadeIn').value = (state.audioFadeIn || 0).toFixed(1);

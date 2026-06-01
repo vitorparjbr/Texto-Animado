@@ -162,7 +162,7 @@
         const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), clipDuration);
 
         const startAt = 0.05;
-        const needsLoop = totalDurationSec > startAt + clipDuration;
+        const needsLoop = state.audioLoop !== false && totalDurationSec > startAt + clipDuration;
         const effectiveEnd = needsLoop ? totalDurationSec : startAt + clipDuration;
 
         source.buffer = audioBuffer;
@@ -401,7 +401,7 @@
         const clipDuration = Math.max(0, trimEnd - trimStart);
         if (!clipDuration) return null;
 
-        const audioOffset = exportStartSec ? (exportStartSec % clipDuration) : 0;
+        const audioOffset = (state.audioLoop !== false && exportStartSec) ? (exportStartSec % clipDuration) : (exportStartSec || 0);
 
         const audioContext = new AudioContextCtor();
         const destination = audioContext.createMediaStreamDestination();
@@ -409,7 +409,7 @@
         const gainNode = audioContext.createGain();
         const volume = Math.max(0, Math.min(state.audioVolume || 0, 1));
         const startAt = audioContext.currentTime + 0.05;
-        const needsLoop = totalDurationSec > 0 && totalDurationSec > (clipDuration - audioOffset);
+        const needsLoop = state.audioLoop !== false && totalDurationSec > 0 && totalDurationSec > (clipDuration - audioOffset);
         const effectiveDuration = totalDurationSec;
         const fadeIn = Math.min(Math.max(0, state.audioFadeIn || 0), effectiveDuration);
         const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), effectiveDuration);
@@ -435,8 +435,11 @@
             source.start(startAt, trimStart + audioOffset);
             source.stop(stopAt + 0.02);
         } else {
-            source.start(startAt, trimStart + audioOffset, clipDuration - audioOffset);
-            source.stop(stopAt + 0.02);
+            const playDuration = clipDuration - audioOffset;
+            if (playDuration > 0) {
+                source.start(startAt, trimStart + audioOffset, playDuration);
+                source.stop(stopAt + 0.02);
+            }
         }
 
         return {
@@ -471,14 +474,14 @@
         const clipDuration = Math.max(0, trimEnd - trimStart);
         if (!clipDuration) return null;
 
-        const audioOffset = exportStartSec ? (exportStartSec % clipDuration) : 0;
+        const audioOffset = (state.audioLoop !== false && exportStartSec) ? (exportStartSec % clipDuration) : (exportStartSec || 0);
 
         const audioContext = new AudioContextCtor();
         const destination = audioContext.createMediaStreamDestination();
         const sourceVideo = document.createElement('video');
         const gainNode = audioContext.createGain();
         const volume = Math.max(0, Math.min(state.audioVolume || 0, 1));
-        const needsLoop = totalDurationSec > 0 && totalDurationSec > (clipDuration - audioOffset);
+        const needsLoop = state.audioLoop !== false && totalDurationSec > 0 && totalDurationSec > (clipDuration - audioOffset);
         const effectiveDuration = totalDurationSec;
         const fadeIn = Math.min(Math.max(0, state.audioFadeIn || 0), effectiveDuration);
         const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), effectiveDuration);
@@ -497,7 +500,7 @@
             await waitForMediaElementEvent(sourceVideo, 'loadedmetadata');
         }
 
-        const finalTrimStart = trimStart + audioOffset;
+        const finalTrimStart = Math.min(trimEnd, trimStart + audioOffset);
         if (finalTrimStart > 0) {
             sourceVideo.currentTime = finalTrimStart;
             await waitForMediaElementEvent(sourceVideo, 'seeked');
@@ -516,7 +519,11 @@
         }
 
         await audioContext.resume();
-        await sourceVideo.play();
+        
+        const playDuration = clipDuration - audioOffset;
+        if (state.audioLoop !== false || playDuration > 0) {
+            await sourceVideo.play();
+        }
 
         if (needsLoop) {
             loopListener = function() {
@@ -529,9 +536,10 @@
                 sourceVideo.pause();
             }, (totalDurationSec * 1000) + 50);
         } else {
+            const activePlayMs = Math.max(0, playDuration * 1000);
             stopTimer = setTimeout(function() {
                 sourceVideo.pause();
-            }, (effectiveDuration * 1000) + 50);
+            }, Math.min(effectiveDuration * 1000, activePlayMs) + 50);
         }
 
         return {

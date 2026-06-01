@@ -65,6 +65,7 @@
         audioVolume: 1,
         audioBuffer: null,
         audioIsDecoding: false,
+        audioLoop: true,
         exportTrimActive: false,
         exportTrimStart: 0,
         exportTrimEnd: 0,
@@ -365,6 +366,7 @@
             audioFadeIn: state.audioFadeIn,
             audioFadeOut: state.audioFadeOut,
             audioVolume: state.audioVolume,
+            audioLoop: state.audioLoop,
             exportTrimActive: state.exportTrimActive,
             exportTrimStart: state.exportTrimStart,
             exportTrimEnd: state.exportTrimEnd
