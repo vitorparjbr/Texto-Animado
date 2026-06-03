@@ -470,8 +470,7 @@
             syncUIFromState();
         });
 
-        document.getElementById('audioInput').addEventListener('change', function(e) {
-            var file = e.target.files[0];
+        function handleAudioFile(file) {
             var AudioContextCtor;
             if (!file) return;
 
@@ -524,6 +523,10 @@
                 showToast('Nao foi possivel decodificar o audio para exportacao.', 'error');
                 syncUIFromState();
             });
+        }
+
+        document.getElementById('audioInput').addEventListener('change', function(e) {
+            handleAudioFile(e.target.files[0]);
         });
 
         document.getElementById('audioUseBackgroundVideo').addEventListener('change', function(e) {
@@ -861,6 +864,17 @@
                 else openMenu();
             }
         });
+
+        // Auto-load test audio if URL has ?testAudio=true
+        if (window.location.search.includes('testAudio=true')) {
+            fetch('test.wav')
+                .then(r => r.blob())
+                .then(blob => {
+                    const file = new File([blob], 'test.wav', { type: 'audio/wav' });
+                    handleAudioFile(file);
+                })
+                .catch(err => console.error('Failed to auto-load test audio:', err));
+        }
     }
 
     window.TextFlowEvents = {
