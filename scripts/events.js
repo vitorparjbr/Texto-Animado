@@ -116,6 +116,7 @@
             state.audioDuration = 0;
             state.audioTrimStart = 0;
             state.audioTrimEnd = 0;
+            state.audioDelay = 0;
             state.audioFadeIn = 0;
             state.audioFadeOut = 0;
             state.audioVolume = 1;
@@ -613,6 +614,14 @@
             syncUIFromState();
         });
 
+        document.getElementById('audioDelay').addEventListener('input', function(e) {
+            saveUndoState();
+            state.audioDelay = Math.max(0, parseFloat(e.target.value) || 0);
+            document.getElementById('audioDelayValue').textContent = state.audioDelay.toFixed(1) + 's';
+            resetAnimation();
+            syncUIFromState();
+        });
+
         document.getElementById('audioTrimStart').addEventListener('change', function(e) {
             saveUndoState();
             state.audioTrimStart = clampAudioValue(e.target.value, 0);
@@ -721,7 +730,8 @@
                 exportTrimActive: state.exportTrimActive,
                 exportTrimStart: state.exportTrimStart,
                 exportTrimEnd: state.exportTrimEnd,
-                audioLoop: state.audioLoop
+                audioLoop: state.audioLoop,
+                audioDelay: state.audioDelay
             };
 
             try {
@@ -781,6 +791,7 @@
                 state.audioFadeOut = 0;
                 state.audioVolume = 1;
                 state.audioLoop = data.audioLoop !== undefined ? data.audioLoop : true;
+                state.audioDelay = data.audioDelay || 0;
 
                 initCanvas();
                 syncUIFromState();

@@ -277,6 +277,11 @@
                             </div>
                         </div>
                         <div class="flex items-center gap-3">
+                            <label class="text-xs text-muted w-16" for="audioDelay">Atraso</label>
+                            <input type="range" id="audioDelay" min="0" max="10" step="0.1" value="0" class="flex-1" title="Atraso do áudio em segundos" aria-label="Atraso do áudio em segundos">
+                            <span id="audioDelayValue" class="text-xs w-10">0.0s</span>
+                        </div>
+                        <div class="flex items-center gap-3">
                             <label class="text-xs text-muted w-16" for="audioVolume">Volume</label>
                             <input type="range" id="audioVolume" min="0" max="1" step="0.05" value="1" class="flex-1" title="Volume do áudio" aria-label="Volume do áudio">
                             <span id="audioVolumeValue" class="text-xs w-10">100%</span>

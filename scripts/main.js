@@ -120,7 +120,8 @@
 
         const trimStart = getAudioTrimStart();
         const trimEnd = getAudioTrimEnd();
-        const audioDurationMs = activeAudioMode !== 'none' ? Math.max(0, (trimEnd - trimStart) * 1000) : 0;
+        const audioDelayMs = (state.audioDelay || 0) * 1000;
+        const audioDurationMs = activeAudioMode !== 'none' ? Math.max(0, (trimEnd - trimStart) * 1000) + audioDelayMs : 0;
         
         return Math.max(visualDurationMs, audioDurationMs, 500) / 1000; // em segundos
     }
@@ -201,13 +202,16 @@
             return;
         }
 
+        const audioDelay = state.audioDelay || 0;
+        const audioElapsed = Math.max(0, state.globalTime - audioDelay);
+
         trimStart = getAudioTrimStart();
         trimEnd = getAudioTrimEnd();
         const bgClipDuration = Math.max(0, trimEnd - trimStart);
         // Loop the background video audio in preview when globalTime exceeds the clip, unless loop is disabled
         const bgLoopedOffset = (state.audioLoop !== false && bgClipDuration > 0)
-            ? (state.globalTime % bgClipDuration)
-            : state.globalTime;
+            ? (audioElapsed % bgClipDuration)
+            : audioElapsed;
         targetTime = Math.min(trimEnd, trimStart + bgLoopedOffset);
 
         if (
@@ -223,7 +227,7 @@
             }
         }
 
-        if (state.isPlaying && targetTime < trimEnd - 0.05) {
+        if (state.isPlaying && state.globalTime >= audioDelay && targetTime < trimEnd - 0.05) {
             // Só chama play() se o vídeo estiver pausado — evitar criar Promises a cada frame no mobile
             if (videoBg.paused) videoBg.play().catch(function() {});
         } else {
@@ -243,13 +247,16 @@
             return;
         }
 
+        const audioDelay = state.audioDelay || 0;
+        const audioElapsed = Math.max(0, state.globalTime - audioDelay);
+
         const trimStart = getAudioTrimStart();
         const trimEnd = getAudioTrimEnd();
         const clipDuration = Math.max(0, trimEnd - trimStart);
         // Loop the audio in preview: when globalTime exceeds the clip, wrap it around, unless loop is disabled
         const loopedOffset = (state.audioLoop !== false && clipDuration > 0)
-            ? (state.globalTime % clipDuration)
-            : state.globalTime;
+            ? (audioElapsed % clipDuration)
+            : audioElapsed;
         const targetTime = Math.min(trimEnd, trimStart + loopedOffset);
 
         applyAudioVolume();
@@ -267,7 +274,7 @@
             }
         }
 
-        if (state.isPlaying && targetTime < trimEnd - 0.05) {
+        if (state.isPlaying && state.globalTime >= audioDelay && targetTime < trimEnd - 0.05) {
             if (audioTrack.paused) {
                 audioTrack.play().catch(function() {});
             }
@@ -576,6 +583,14 @@
         if (delayEl) {
             delayEl.value = layer.startDelay || 0;
             delayValEl.textContent = (layer.startDelay || 0).toFixed(1) + 's';
+        }
+
+        // Audio delay slider
+        var audioDelayEl = document.getElementById('audioDelay');
+        var audioDelayValEl = document.getElementById('audioDelayValue');
+        if (audioDelayEl) {
+            audioDelayEl.value = state.audioDelay || 0;
+            audioDelayValEl.textContent = (state.audioDelay || 0).toFixed(1) + 's';
         }
 
         // Cortar Vídeo UI syncing

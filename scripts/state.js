@@ -55,6 +55,7 @@
         mediaSource: null,
         mediaFileName: '',
         audioSource: null,
+        audioDelay: 0,
         audioSourceMode: 'imported',
         audioFileName: '',
         audioDuration: 0,
@@ -367,6 +368,7 @@
             audioFadeOut: state.audioFadeOut,
             audioVolume: state.audioVolume,
             audioLoop: state.audioLoop,
+            audioDelay: state.audioDelay,
             exportTrimActive: state.exportTrimActive,
             exportTrimStart: state.exportTrimStart,
             exportTrimEnd: state.exportTrimEnd

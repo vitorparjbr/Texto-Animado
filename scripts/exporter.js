@@ -161,7 +161,7 @@
         const fadeIn = Math.min(Math.max(0, state.audioFadeIn || 0), clipDuration);
         const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), clipDuration);
 
-        const startAt = 0.05;
+        const startAt = 0.05 + (state.audioDelay || 0);
         const needsLoop = state.audioLoop !== false && totalDurationSec > startAt + clipDuration;
         const effectiveEnd = needsLoop ? totalDurationSec : startAt + clipDuration;
 
@@ -408,7 +408,7 @@
         const source = audioContext.createBufferSource();
         const gainNode = audioContext.createGain();
         const volume = Math.max(0, Math.min(state.audioVolume || 0, 1));
-        const startAt = audioContext.currentTime + 0.05;
+        const startAt = audioContext.currentTime + 0.05 + (state.audioDelay || 0);
         const needsLoop = state.audioLoop !== false && totalDurationSec > 0 && totalDurationSec > (clipDuration - audioOffset);
         const effectiveDuration = totalDurationSec;
         const fadeIn = Math.min(Math.max(0, state.audioFadeIn || 0), effectiveDuration);
@@ -485,7 +485,7 @@
         const effectiveDuration = totalDurationSec;
         const fadeIn = Math.min(Math.max(0, state.audioFadeIn || 0), effectiveDuration);
         const fadeOut = Math.min(Math.max(0, state.audioFadeOut || 0), effectiveDuration);
-        const startAt = audioContext.currentTime + 0.05;
+        const startAt = audioContext.currentTime + 0.05 + (state.audioDelay || 0);
         const stopAt = startAt + effectiveDuration;
         let sourceNode;
         let stopTimer;
