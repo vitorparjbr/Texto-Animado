@@ -596,13 +596,15 @@
             throwIfExportCancelled(exportController);
         }
 
-        const canvasStream = renderCanvas.captureStream(30);
+        const manualFrameCapture = useDedicatedRecorderCanvas;
+        const canvasStream = renderCanvas.captureStream(manualFrameCapture ? 0 : 30);
         let audioExport = null;
         let streamTracks = canvasStream.getVideoTracks().slice();
-        let renderInterval = null;
+        let renderLoopPromise = null;
         let progressInterval = null;
         let stopTimeout = null;
         let recordingStopped = false;
+        const videoTrack = streamTracks[0] || null;
 
         const totalDurationSec = duration / 1000;
         const exportStartSec = exportStartMs / 1000;
@@ -626,10 +628,7 @@
                 clearInterval(progressInterval);
                 progressInterval = null;
             }
-            if (renderInterval) {
-                clearInterval(renderInterval);
-                renderInterval = null;
-            }
+            renderLoopPromise = null;
             if (stopTimeout) {
                 clearTimeout(stopTimeout);
                 stopTimeout = null;
@@ -677,6 +676,9 @@
         if (useDedicatedRecorderCanvas && renderCtx) {
             state.globalTime = exportStartMs / 1000;
             render(renderCtx, renderCanvas, state, videoBg, renderImageBg, easings);
+            if (videoTrack && typeof videoTrack.requestFrame === 'function') {
+                videoTrack.requestFrame();
+            }
         }
 
         mediaRecorder.start();
@@ -698,38 +700,68 @@
 
         if (useDedicatedRecorderCanvas && renderCtx) {
             const frameDuration = 1000 / 30;
-            renderInterval = setInterval(function() {
-                if (exportController && exportController.cancelled) {
-                    stopRecorder();
-                    return;
-                }
+            const loopStart = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+                ? performance.now()
+                : Date.now();
+            let frameIndex = 1;
 
-                const elapsed = Math.min(Date.now() - startTime, duration);
-                state.globalTime = (exportStartMs / 1000) + (elapsed / 1000);
+            renderLoopPromise = (async function pumpRecorderFrames() {
+                while (!recordingStopped) {
+                    if (exportController && exportController.cancelled) {
+                        stopRecorder();
+                        return;
+                    }
 
-                // Protege contra falhas silenciosas de GPU no mobile (context lost,
-                // OOM durante shadowBlur pesado). Sem o try/catch, uma exceção no
-                // render faria o texto parar de ser desenhado enquanto o fundo
-                // e o áudio continuam normalmente.
-                try {
-                    render(renderCtx, renderCanvas, state, videoBg, renderImageBg, easings);
-                } catch (renderErr) {
-                    console.warn('Export render frame error:', renderErr);
-                }
+                    const elapsed = Math.min(frameIndex * frameDuration, duration);
+                    state.globalTime = (exportStartMs / 1000) + (elapsed / 1000);
 
-                if (elapsed >= duration) {
-                    stopRecorder();
+                    // Mantem render e captura sincronizados; isso reduz a repeticao
+                    // do mesmo frame quando o device nao sustenta timers estaveis.
+                    try {
+                        render(renderCtx, renderCanvas, state, videoBg, renderImageBg, easings);
+                        if (videoTrack && typeof videoTrack.requestFrame === 'function') {
+                            videoTrack.requestFrame();
+                        }
+                    } catch (renderErr) {
+                        console.warn('Export render frame error:', renderErr);
+                    }
+
+                    if (elapsed >= duration) {
+                        stopRecorder();
+                        return;
+                    }
+
+                    frameIndex++;
+
+                    const now = (typeof performance !== 'undefined' && typeof performance.now === 'function')
+                        ? performance.now()
+                        : Date.now();
+                    const nextFrameAt = loopStart + (frameIndex * frameDuration);
+                    const waitMs = Math.max(0, nextFrameAt - now);
+
+                    await new Promise(function(resolve) {
+                        if (waitMs > 4) {
+                            setTimeout(resolve, waitMs);
+                        } else if (typeof requestAnimationFrame === 'function') {
+                            requestAnimationFrame(function() { resolve(); });
+                        } else {
+                            setTimeout(resolve, 0);
+                        }
+                    });
                 }
-            }, frameDuration);
+            })();
         }
 
         stopTimeout = setTimeout(function() {
             if (useDedicatedRecorderCanvas && renderCtx) {
                 state.globalTime = (exportStartMs / 1000) + (duration / 1000);
                 render(renderCtx, renderCanvas, state, videoBg, renderImageBg, easings);
+                if (videoTrack && typeof videoTrack.requestFrame === 'function') {
+                    videoTrack.requestFrame();
+                }
             }
             stopRecorder();
-        }, duration);
+        }, duration + 250);
 
         statusEl.textContent = 'Processando vídeo...';
         progressBar.style.width = '100%';
