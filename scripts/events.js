@@ -1,4 +1,4 @@
-(() => {
+ (() => {
     function bindEvents(deps) {
         const {
             state,
