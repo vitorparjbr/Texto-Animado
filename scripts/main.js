@@ -698,6 +698,17 @@
         state.lastTime = timestamp;
         if (delta > 0.1) delta = 0.016;
 
+        // Durante a exportação, pula toda a renderização e sincronização no canvas
+        // principal. No mobile, a GPU não consegue renderizar dois canvas com efeitos
+        // pesados (neon + shadowBlur + PNG) simultaneamente — o canvas de exportação
+        // quase não atualiza, causando texto "congelado" no vídeo. Além disso,
+        // evita race condition onde o boundary check resetava state.globalTime
+        // (que o interval da exportação estava controlando).
+        if (state.isExporting) {
+            state.animationId = requestAnimationFrame(animate);
+            return;
+        }
+
         if (state.isPlaying) {
             state.globalTime += delta;
         }

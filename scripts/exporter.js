@@ -79,7 +79,7 @@
         return Math.max(5000000, Math.min(12000000, Math.round(width * height * 8)));
     }
 
-    async function createExportImageSource(state, imageBg) {
+    async function createExportImageSource(state, imageBg, targetWidth, targetHeight) {
         let exportImageBg = imageBg;
         let exportImageBitmap = null;
 
@@ -92,14 +92,20 @@
                         exportImageBitmap = await createImageBitmap(imageBg);
                     }
 
+                    // Pré-redimensiona a imagem para o tamanho exato do canvas de exportação.
+                    // Sem isso, imagens PNG de alta resolução (ex: 4000x3000) seriam
+                    // redimensionadas pelo drawImage a cada frame, sobrecarregando a GPU
+                    // — especialmente combinado com efeitos pesados como neon/shadowBlur.
+                    var finalWidth = (targetWidth && targetHeight) ? targetWidth : exportImageBitmap.width;
+                    var finalHeight = (targetWidth && targetHeight) ? targetHeight : exportImageBitmap.height;
                     var bitmapCanvas = document.createElement('canvas');
-                    bitmapCanvas.width = exportImageBitmap.width;
-                    bitmapCanvas.height = exportImageBitmap.height;
+                    bitmapCanvas.width = finalWidth;
+                    bitmapCanvas.height = finalHeight;
                     var bitmapCtx = bitmapCanvas.getContext('2d');
                     if (bitmapCtx) {
                         bitmapCtx.imageSmoothingEnabled = true;
                         if ('imageSmoothingQuality' in bitmapCtx) bitmapCtx.imageSmoothingQuality = 'high';
-                        bitmapCtx.drawImage(exportImageBitmap, 0, 0);
+                        bitmapCtx.drawImage(exportImageBitmap, 0, 0, finalWidth, finalHeight);
                     }
                     exportImageBg = bitmapCanvas;
                     exportImageBg.complete = true;
@@ -230,7 +236,7 @@
         const easings = window.TextFlowState.easings;
         const videoBg = document.getElementById('videoBg');
         const imageBg = document.getElementById('imageBg');
-            const imageExportAsset = await createExportImageSource(state, imageBg);
+            const imageExportAsset = await createExportImageSource(state, imageBg, canvas.width, canvas.height);
             let exportImageBg = imageExportAsset.source;
             let exportImageBitmap = imageExportAsset.bitmap;
             throwIfExportCancelled(exportController);
@@ -302,8 +308,12 @@
 
             // Renderiza no canvas offscreen usando o imageBg pré-decodificado
             render(exportCtx, exportCanvas, state, videoBg, exportImageBg, easings);
-            
-            if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
+
+            // Yield a cada frame para garantir que operações pesadas de composição
+            // (e.g. neon shadowBlur com PNG de fundo) terminem antes de capturar o frame.
+            // Sem isso, o VideoFrame pode capturar o canvas antes da GPU finalizar,
+            // causando frames "congelados" no vídeo exportado.
+            await new Promise(r => setTimeout(r, 0));
             throwIfExportCancelled(exportController);
 
             const frame = new VideoFrame(exportCanvas, { timestamp: (i / 30) * 1000000 });
@@ -318,8 +328,8 @@
             // Aguarda a fila do encoder diminuir, com timeout de segurança para evitar
             // travamento infinito no mobile caso o encoder pare de processar frames.
             var queueWaitStart = Date.now();
-            while (videoEncoder.encodeQueueSize > 10) {
-                await new Promise(r => setTimeout(r, 5));
+            while (videoEncoder.encodeQueueSize > 5) {
+                await new Promise(r => setTimeout(r, 10));
                 throwIfExportCancelled(exportController);
                 if (Date.now() - queueWaitStart > 8000) {
                     throw new Error('VideoEncoder travou: fila de encode não está sendo processada (mobile).');
@@ -581,7 +591,7 @@
                 if ('imageSmoothingQuality' in renderCtx) renderCtx.imageSmoothingQuality = 'high';
             }
 
-            imageExportAsset = await createExportImageSource(state, imageBg);
+            imageExportAsset = await createExportImageSource(state, imageBg, canvas.width, canvas.height);
             renderImageBg = imageExportAsset.source;
             throwIfExportCancelled(exportController);
         }
@@ -696,7 +706,16 @@
 
                 const elapsed = Math.min(Date.now() - startTime, duration);
                 state.globalTime = (exportStartMs / 1000) + (elapsed / 1000);
-                render(renderCtx, renderCanvas, state, videoBg, renderImageBg, easings);
+
+                // Protege contra falhas silenciosas de GPU no mobile (context lost,
+                // OOM durante shadowBlur pesado). Sem o try/catch, uma exceção no
+                // render faria o texto parar de ser desenhado enquanto o fundo
+                // e o áudio continuam normalmente.
+                try {
+                    render(renderCtx, renderCanvas, state, videoBg, renderImageBg, easings);
+                } catch (renderErr) {
+                    console.warn('Export render frame error:', renderErr);
+                }
 
                 if (elapsed >= duration) {
                     stopRecorder();
