@@ -112,7 +112,7 @@ t_layer = clamp((globalTime - layer.startDelay) / animDuration, 0, 1)
 ```
 
 - Layers com `globalTime < startDelay` são **invisíveis** até seu momento.
-- Scroll usa velocidade em px/s calculada em tempo real.
+- Scroll usa velocidade em px/s calculada em tempo real e agora conta com renderização suavizada para velocidades lentas (0.1×–0.5×).
 - Ao resetar, `globalTime = 0` faz todas as layers voltarem ao início.
 
 ## Recursos de Animação
