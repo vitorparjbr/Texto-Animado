@@ -47,6 +47,8 @@
         activeLayerId: 1,
         nextLayerId: 2,
         speed: 2,
+        useBackingBuffer: false,
+        debugRender: false,
         format: '1:1',
         resolution: 720,
         bgTransparent: true,
@@ -369,9 +371,11 @@
             audioVolume: state.audioVolume,
             audioLoop: state.audioLoop,
             audioDelay: state.audioDelay,
-            exportTrimActive: state.exportTrimActive,
+                exportTrimActive: state.exportTrimActive,
             exportTrimStart: state.exportTrimStart,
             exportTrimEnd: state.exportTrimEnd
+                ,useBackingBuffer: state.useBackingBuffer,
+                debugRender: state.debugRender
         });
     }
 

@@ -470,37 +470,40 @@
     var _lastVideoFrame = null;
     var _lastVideoFrameCtx = null;
     var _lastVideoFrameSrc = '';
+    // Backing buffer para render offscreen (reduz jitter em movimentos lentos)
+    var _backBuffer = null;
+    var _backBufferCtx = null;
 
-    function render(ctx, canvas, state, videoBg, imageBg, easings) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    function doRender(drawCtx, drawCanvas, state, videoBg, imageBg, easings, useBuffer) {
+        drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
 
         try {
             if (state.mediaType === 'video' && videoBg.src) {
                 if (videoBg.readyState >= 2) {
-                    ctx.drawImage(videoBg, 0, 0, canvas.width, canvas.height);
+                    drawCtx.drawImage(videoBg, 0, 0, drawCanvas.width, drawCanvas.height);
                     // Atualiza o cache do frame para usar como fallback quando readyState cair
                     if (_lastVideoFrameSrc !== videoBg.src || !_lastVideoFrame ||
-                            _lastVideoFrame.width !== canvas.width || _lastVideoFrame.height !== canvas.height) {
+                            _lastVideoFrame.width !== drawCanvas.width || _lastVideoFrame.height !== drawCanvas.height) {
                         _lastVideoFrame = document.createElement('canvas');
-                        _lastVideoFrame.width = canvas.width;
-                        _lastVideoFrame.height = canvas.height;
+                        _lastVideoFrame.width = drawCanvas.width;
+                        _lastVideoFrame.height = drawCanvas.height;
                         _lastVideoFrameCtx = _lastVideoFrame.getContext('2d');
                         _lastVideoFrameSrc = videoBg.src;
                     }
-                    _lastVideoFrameCtx.drawImage(videoBg, 0, 0, canvas.width, canvas.height);
+                    _lastVideoFrameCtx.drawImage(videoBg, 0, 0, drawCanvas.width, drawCanvas.height);
                 } else if (_lastVideoFrame && _lastVideoFrameSrc === videoBg.src &&
-                           _lastVideoFrame.width === canvas.width && _lastVideoFrame.height === canvas.height) {
+                           _lastVideoFrame.width === drawCanvas.width && _lastVideoFrame.height === drawCanvas.height) {
                     // Usa o frame em cache enquanto o vídeo está bufferizando (evita flickering)
-                    ctx.drawImage(_lastVideoFrame, 0, 0, canvas.width, canvas.height);
+                    drawCtx.drawImage(_lastVideoFrame, 0, 0, drawCanvas.width, drawCanvas.height);
                 } else if (!state.bgTransparent) {
-                    ctx.fillStyle = state.bgColor;
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    drawCtx.fillStyle = state.bgColor;
+                    drawCtx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
                 }
             } else if (state.mediaType === 'image' && imageBg.src && imageBg.complete) {
-                ctx.drawImage(imageBg, 0, 0, canvas.width, canvas.height);
+                drawCtx.drawImage(imageBg, 0, 0, drawCanvas.width, drawCanvas.height);
             } else if (!state.bgTransparent) {
-                ctx.fillStyle = state.bgColor;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                drawCtx.fillStyle = state.bgColor;
+                drawCtx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
             }
 
             // Libera memória do fallback caso não estejamos mais usando vídeo
@@ -518,7 +521,48 @@
         }
 
         for (let i = 0; i < state.layers.length; i++) {
-            renderLayer(ctx, canvas, state, state.layers[i], easings);
+            renderLayer(drawCtx, drawCanvas, state, state.layers[i], easings);
+        }
+
+        // Debug overlay
+        if (state.debugRender) {
+            try {
+                drawCtx.save();
+                drawCtx.globalAlpha = 0.6;
+                drawCtx.fillStyle = '#000';
+                drawCtx.fillRect(6, 6, 170, 22);
+                drawCtx.globalAlpha = 1;
+                drawCtx.fillStyle = '#fff';
+                drawCtx.font = '12px sans-serif';
+                const info = 'spd:' + state.speed + ' buffer:' + (useBuffer ? 'on' : 'off');
+                drawCtx.fillText(info, 10, 22);
+                drawCtx.restore();
+            } catch (e) {}
+        }
+    }
+
+    function render(ctx, canvas, state, videoBg, imageBg, easings) {
+        // Use offscreen/backing buffer automatically for very low speeds or when explicitly enabled
+        var useBuffer = !!state.useBackingBuffer || (typeof state.speed === 'number' && state.speed < 0.5);
+
+        if (useBuffer) {
+            if (!_backBuffer) {
+                _backBuffer = document.createElement('canvas');
+                _backBufferCtx = _backBuffer.getContext('2d');
+            }
+            if (_backBuffer.width !== canvas.width || _backBuffer.height !== canvas.height) {
+                _backBuffer.width = canvas.width;
+                _backBuffer.height = canvas.height;
+            }
+
+            doRender(_backBufferCtx, _backBuffer, state, videoBg, imageBg, easings, true);
+
+            // Draw final onto main canvas with smoothing
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            try { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high'; } catch (e) {}
+            ctx.drawImage(_backBuffer, 0, 0, canvas.width, canvas.height);
+        } else {
+            doRender(ctx, canvas, state, videoBg, imageBg, easings, false);
         }
     }
 
