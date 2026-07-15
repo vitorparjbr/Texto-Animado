@@ -7,6 +7,11 @@
 
     const canvas = document.getElementById('mainCanvas');
     const ctx = canvas.getContext('2d');
+    // Improve scaling quality when canvas is resized via CSS
+    try {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+    } catch (e) {}
     const videoBg = document.getElementById('videoBg');
     const imageBg = document.getElementById('imageBg');
     const audioTrack = document.getElementById('audioTrack');
@@ -295,8 +300,8 @@
         const maxWidth = Math.max(180, viewportWidth - horizontalPadding);
         const maxHeight = Math.max(180, viewportHeight - verticalPadding);
         const scale = Math.min(maxWidth / dim.width, maxHeight / dim.height, 1);
-        canvas.style.width = (dim.width * scale) + 'px';
-        canvas.style.height = (dim.height * scale) + 'px';
+        canvas.style.width = Math.round(dim.width * scale) + 'px';
+        canvas.style.height = Math.round(dim.height * scale) + 'px';
     }
 
     function initCanvas() {

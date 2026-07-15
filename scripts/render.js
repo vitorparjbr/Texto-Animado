@@ -320,6 +320,11 @@
         return anchorX;
     }
 
+    // Snap drawing coordinates to a 0.5px grid to reduce sub-pixel jitter
+    function snapHalfPx(v) {
+        return Math.round(v * 2) / 2;
+    }
+
     function drawLayout(ctx, layer, layout, anchorX, startY, yOffset, wavePhase) {
         let currentY = startY + (yOffset || 0);
 
@@ -330,7 +335,9 @@
 
             line.fragments.forEach(function(fragment) {
                 if (wavePhase === undefined) {
-                    applyEffect(ctx, layer, fragment.text, currentX, currentY, fragment.style);
+                    const dx = snapHalfPx(currentX);
+                    const dy = snapHalfPx(currentY);
+                    applyEffect(ctx, layer, fragment.text, dx, dy, fragment.style);
                     currentX += fragment.width;
                     return;
                 }
@@ -339,7 +346,9 @@
                     const char = fragment.text.charAt(i);
                     const charWidth = measureTextWithStyle(ctx, char, fragment.style);
                     const waveOffset = Math.sin(wavePhase + charIndex * 0.3) * 10;
-                    applyEffect(ctx, layer, char, currentX, currentY + waveOffset, fragment.style);
+                    const dx = snapHalfPx(currentX);
+                    const dy = snapHalfPx(currentY + waveOffset);
+                    applyEffect(ctx, layer, char, dx, dy, fragment.style);
                     currentX += charWidth;
                     charIndex++;
                 }
@@ -422,33 +431,33 @@
                 ctx,
                 layer,
                 layout,
-                layer.align === 'center' ? 0 : layer.align === 'right' ? canvas.width / 2 - 20 : -canvas.width / 2 + 20,
+                snapHalfPx(layer.align === 'center' ? 0 : layer.align === 'right' ? canvas.width / 2 - 20 : -canvas.width / 2 + 20),
                 -totalHeight / 2
             );
             ctx.restore();
         } else if (anim === 'bounce') {
             const bounceY = (canvas.height - totalHeight) / 2 - (1 - t) * canvas.height * 0.5;
-            drawLayout(ctx, layer, layout, startX, bounceY);
+            drawLayout(ctx, layer, layout, startX, snapHalfPx(bounceY));
         } else if (anim === 'slideLeft') {
             const slideX = (1 - t) * (canvas.width + 100);
             ctx.save();
-            ctx.translate(-slideX, 0);
+            ctx.translate(-snapHalfPx(slideX), 0);
             drawLayout(ctx, layer, layout, startX, baseY);
             ctx.restore();
         } else if (anim === 'slideRight') {
             const slideX = (1 - t) * (canvas.width + 100);
             ctx.save();
-            ctx.translate(slideX, 0);
+            ctx.translate(snapHalfPx(slideX), 0);
             drawLayout(ctx, layer, layout, startX, baseY);
             ctx.restore();
         } else if (anim === 'wave') {
             drawLayout(ctx, layer, layout, startX, baseY, 0, t * Math.PI * 4);
         } else if (anim === 'scrollUp') {
             const scrollY = (canvas.height + 50) - t * (canvas.height + totalHeight + 100);
-            drawLayout(ctx, layer, layout, startX, scrollY);
+            drawLayout(ctx, layer, layout, startX, snapHalfPx(scrollY));
         } else if (anim === 'scrollDown') {
             const scrollY = (-totalHeight - 50) + t * (canvas.height + totalHeight + 100);
-            drawLayout(ctx, layer, layout, startX, scrollY);
+            drawLayout(ctx, layer, layout, startX, snapHalfPx(scrollY));
         } else {
             drawLayout(ctx, layer, layout, startX, baseY);
         }
