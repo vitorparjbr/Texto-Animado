@@ -75,7 +75,7 @@ icons/
 | Seção | O que controla |
 | --- | --- |
 | **Texto** | Conteúdo do texto da camada ativa, com seleção persistida para aplicar formatação parcial |
-| **Velocidade** | Slider de 0.5× a 5× (global) |
+| **Velocidade** | Slider de 0.1× a 5× (global) |
 | **Atraso da camada** | Slider de 0s a 10s — delay de entrada da camada ativa |
 | **Alinhamento** | Esquerda, centro, direita |
 | **Fonte** | Família, tamanho, cor, negrito/itálico; com seleção ativa, afeta só o trecho selecionado |
